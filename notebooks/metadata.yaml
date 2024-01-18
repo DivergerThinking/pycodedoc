@@ -1,0 +1,1159 @@
+output:
+- path: ../../codeas/src/codeas/thread.py
+  function: model_post_init
+  code: |-
+    def model_post_init(self, __context: Any) -> None:
+            # executed on model instantiation
+            if self.system_prompt is not None:
+                self.add_message({"role": "system", "content": self.system_prompt})
+  response: Initializes model with system prompt message.
+- path: ../../codeas/src/codeas/thread.py
+  function: run
+  code: |-
+    def run(self):
+            if self.verbose and self.use_console:
+                start_message_block("Assistant", "blue")
+
+            self._add_context_to_messages()
+
+            self.trim_messages()
+            response = self._run_messages()
+
+            self._remove_context_from_messages()
+
+            if self.verbose and self.use_console:
+                end_message_block("blue")
+
+            return response
+  response: Executes and manages message processing and response.
+- path: ../../codeas/src/codeas/thread.py
+  function: _add_context_to_messages
+  code: |-
+    def _add_context_to_messages(self):
+            if self._context is not None:
+                msg_idx = 1 if self.system_prompt else 0
+                self._messages.insert(msg_idx, {"role": "user", "content": self._context})
+  response: Adds context to messages in a chat.
+- path: ../../codeas/src/codeas/thread.py
+  function: _remove_context_from_messages
+  code: |-
+    def _remove_context_from_messages(self):
+            if self._context is not None:
+                msg_idx = 1 if self.system_prompt else 0
+                self._messages.pop(msg_idx)
+  response: Removes a message from the list.
+- path: ../../codeas/src/codeas/thread.py
+  function: trim_messages
+  code: |-
+    def trim_messages(self):
+            if self.check_messages_fit_context_window() is False:
+                if self.check_codebase_context_fits() is False:
+                    print("ERROR: Context is too long. Reduce context size")
+                    return  # don't run if codebase context doesn't fit
+                else:  # remove oldest messages until it fits
+                    self.remove_oldest_messages()
+  response: Trims messages to fit window size.
+- path: ../../codeas/src/codeas/thread.py
+  function: _run_messages
+  code: |-
+    def _run_messages(self):
+            response = {"role": "assistant", "content": None, "tool_calls": None}
+            for chunk in self._run_completion():
+                choice = chunk.choices[0]
+
+                if choice.delta and choice.delta.content:
+                    self._parse_delta_content(choice.delta, response)
+                    if self.verbose:
+                        self._print_delta_content(choice.delta)
+
+                elif choice.delta and choice.delta.tool_calls:
+                    if response["tool_calls"] is None:  # only runs on first chunk
+                        response["tool_calls"] = []
+                        if self.verbose and self.use_console:
+                            live = Live()
+                            live.start()
+
+                    self._parse_delta_tools(choice.delta, response)
+                    if self.verbose and self.use_console:
+                        self._print_delta_tools(response, live)
+
+                elif choice.finish_reason is not None:  # only runs on last chunk
+                    if self.verbose and self.use_console and response["tool_calls"]:
+                        live.stop()
+                    elif (
+                        self.verbose
+                        and self.use_console is False
+                        and response["tool_calls"]
+                    ):
+                        pprint(response, expand_all=True)
+            return response
+  response: Parses, stores, and returns response from completion chunks.
+- path: ../../codeas/src/codeas/thread.py
+  function: check_messages_fit_context_window
+  code: |-
+    def check_messages_fit_context_window(self):
+            num_tokens = self.count_tokens_from_messages()
+            try:
+                if self.max_tokens_per_completion is None:
+                    self.max_tokens_per_completion = (
+                        MODEL_INFO[self.model]["context"] * MAX_PCT_INPUT_TOKENS
+                    )
+            except KeyError:
+                print("WARNING: model not found. Assuming model max context is 4k tokens.")
+                self.max_tokens_per_completion = 4096 * MAX_PCT_INPUT_TOKENS
+            if num_tokens > self.max_tokens_per_completion:
+                return False
+            return True
+  response: Checks if messages fit context window.
+- path: ../../codeas/src/codeas/thread.py
+  function: check_codebase_context_fits
+  code: |-
+    def check_codebase_context_fits(self):
+            if self._context:
+                if self.count_tokens(self._context) > self.max_tokens_per_completion:
+                    return False
+            return True
+  response: Checks if context length exceeds maximum tokens.
+- path: ../../codeas/src/codeas/thread.py
+  function: remove_oldest_messages
+  code: |-
+    def remove_oldest_messages(self):
+            start_msg_idx = 1 if self.system_prompt else 0
+            start_msg_idx += 1 if self._context else 0
+
+            while self.count_tokens_from_messages() > self.max_tokens_per_completion:
+                if len(self._messages) == start_msg_idx + 1:
+                    # if only one single message remaining, we stop there
+                    return
+                else:
+                    self._messages.pop(start_msg_idx)
+  response: Removes old messages from list.
+- path: ../../codeas/src/codeas/thread.py
+  function: _run_completion
+  code: |-
+    def _run_completion(self):
+            client = OpenAI()
+            for chunk in client.chat.completions.create(
+                model=self.model,
+                messages=self._messages,
+                tools=get_schemas(self.tools),
+                temperature=self.temperature,
+                stream=True,
+            ):
+                yield chunk
+  response: Generates chat completions using OpenAI API.
+- path: ../../codeas/src/codeas/thread.py
+  function: _parse_delta_content
+  code: |-
+    def _parse_delta_content(self, delta, response):
+            if response["content"] is None:
+                response["content"] = delta.content
+            else:
+                response["content"] += delta.content
+  response: Updates response content with delta content
+- path: ../../codeas/src/codeas/thread.py
+  function: _print_delta_content
+  code: |-
+    def _print_delta_content(self, delta):
+            if self.use_console:
+                console.print(delta.content, end="")
+            else:
+                print(delta.content, end="")
+  response: Prints delta content to console or standard output.
+- path: ../../codeas/src/codeas/thread.py
+  function: _parse_delta_tools
+  code: |-
+    def _parse_delta_tools(self, delta, response):
+            for tchunk in delta.tool_calls:
+                if len(response["tool_calls"]) <= tchunk.index:
+                    response["tool_calls"].append(
+                        {
+                            "id": "",
+                            "type": "function",
+                            "function": {"name": "", "arguments": ""},
+                        }
+                    )
+                if tchunk.id:
+                    response["tool_calls"][tchunk.index]["id"] += tchunk.id
+                if tchunk.function.name:
+                    response["tool_calls"][tchunk.index]["function"][
+                        "name"
+                    ] += tchunk.function.name
+                if tchunk.function.arguments:
+                    response["tool_calls"][tchunk.index]["function"][
+                        "arguments"
+                    ] += tchunk.function.arguments
+  response: Creates tool call objects from response and delta tool calls.
+- path: ../../codeas/src/codeas/thread.py
+  function: _print_delta_tools
+  code: |-
+    def _print_delta_tools(self, response, live):
+            pretty = Pretty(response, expand_all=True)
+            live.update(pretty)
+  response: Prints delta tools from response on live target.
+- path: ../../codeas/src/codeas/thread.py
+  function: run_calls
+  code: |-
+    def run_calls(self, tool_calls: List[dict]):
+            if self.verbose and self.use_console:
+                start_message_block("Calls", "blue")
+
+            for tool_call in tool_calls:
+                tool_call["output"] = self.call(tool_call)
+                yield tool_call
+
+            if self.verbose and self.use_console:
+                end_message_block("blue")
+  response: Runs tool calls with outputs and message blocks.
+- path: ../../codeas/src/codeas/thread.py
+  function: call
+  code: |-
+    def call(self, tool_call: dict):
+            function, args = self._get_function_args(tool_call)
+            try:
+                self._print_call(function, args)
+                output = function(eval(args))
+                self._print_call_success()
+                return output
+            except Exception as e:
+                self._print_call_error(e)
+  response: Executes tool call with error handling
+- path: ../../codeas/src/codeas/thread.py
+  function: _get_function_args
+  code: |-
+    def _get_function_args(self, tool_call: dict):
+            function = [
+                tool
+                for tool in self.tools
+                if tool.__name__ == tool_call["function"]["name"]
+            ][0]
+            # fix booleans without capital letters
+            args = tool_call["function"]["arguments"]
+            args = args.replace("true", "True")
+            args = args.replace("false", "False")
+            return function, args
+  response: Finds function and fixes boolean arguments.
+- path: ../../codeas/src/codeas/thread.py
+  function: _print_call
+  code: |-
+    def _print_call(self, function, args):
+            if self.use_console:
+                console.print(f"Calling: {function.__name__}({args})")
+            else:
+                print(f"Calling: {function.__name__}({args})")
+  response: Prints function call details to console or standard output.
+- path: ../../codeas/src/codeas/thread.py
+  function: _print_call_success
+  code: |-
+    def _print_call_success(self):
+            if self.use_console:
+                console.print(">>> Call successful\n")
+            else:
+                print(">>> Call successful\n")
+  response: Prints call success message based on console usage.
+- path: ../../codeas/src/codeas/thread.py
+  function: _print_call_error
+  code: |-
+    def _print_call_error(self, e):
+            if self.use_console:
+                console.print(f">>> Call failed: {e}\n")
+            else:
+                print(f">>> Call failed: {e}\n")
+  response: Prints call error message to console or print.
+- path: ../../codeas/src/codeas/thread.py
+  function: count_tokens_from_messages
+  code: |-
+    def count_tokens_from_messages(self):
+            """Return the number of tokens used by a list of messages.
+            See: https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
+            """
+            try:
+                encoding = tiktoken.encoding_for_model(self.model)
+            except KeyError:
+                print("Warning: model not found. Using cl100k_base encoding.")
+                encoding = tiktoken.get_encoding("cl100k_base")
+            tokens_per_message = 3
+            tokens_per_name = 1
+            num_tokens = 0
+            for message in self._messages:
+                num_tokens += tokens_per_message
+                if len(message) == 2:
+                    for key, value in message.items():
+                        num_tokens += len(encoding.encode(value))
+                        if key == "name":
+                            num_tokens += tokens_per_name
+                    if len(message) == 3:
+                        for key, _, value in message.items():
+                            num_tokens += len(encoding.encode(value))
+                            if key == "name":
+                                num_tokens += tokens_per_name
+            num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
+            return num_tokens
+  response: Counts the number of tokens in a list of messages.
+- path: ../../codeas/src/codeas/thread.py
+  function: count_tokens
+  code: |-
+    def count_tokens(self, text: str):
+            encoding = tiktoken.encoding_for_model(self.model)
+            return len(encoding.encode(text))
+  response: Counts the number of tokens in a given text.
+- path: ../../codeas/src/codeas/thread.py
+  function: add_message
+  code: |-
+    def add_message(self, message: dict):
+            if "tool_calls" in message and message["tool_calls"] is None:
+                message.pop("tool_calls")
+            self._messages.append(message)
+  response: Adds message to a list.
+- path: ../../codeas/src/codeas/thread.py
+  function: add_context
+  code: |-
+    def add_context(self, context: List[File]):
+            """adds codebase context to the thread"""
+            if any(context):
+                self._context = """###CODEBASE CONTEXT###\n""" + "\n".join(
+                    [f"{c.path}\n{c.content}" for c in context]
+                )
+  response: Adds file paths and content to context.
+- path: ../../codeas/src/codeas/configs.py
+  function: write_settings
+  code: |-
+    def write_settings():
+        settings_keys = ["model", "temperature"]
+
+        if not os.path.exists(".codeas"):
+            os.makedirs(".codeas")
+
+        write_yaml(
+            ".codeas/settings.yaml",
+            {
+                "chat_config": {
+                    key: value for key, value in chat_config.items() if key in settings_keys
+                },
+                "context_agent_config": {
+                    key: value
+                    for key, value in context_agent_config.items()
+                    if key in settings_keys
+                },
+                "writing_agent_config": {
+                    key: value
+                    for key, value in writing_agent_config.items()
+                    if key in settings_keys
+                },
+                "search_agent_config": {
+                    key: value
+                    for key, value in search_agent_config.items()
+                    if key in settings_keys
+                },
+                "codebase_config": codebase_config,
+            },
+        )
+  response: Writes program settings to ".codeas/settings.yaml."
+- path: ../../codeas/src/codeas/configs.py
+  function: update_settings
+  code: |-
+    def update_settings():
+        chat_config.update(settings.get("chat_config", {}))
+        context_agent_config.update(settings.get("context_agent_config", {}))
+        writing_agent_config.update(settings.get("writing_agent_config", {}))
+        search_agent_config.update(settings.get("search_agent_config", {}))
+        codebase_config.update(settings.get("codebase_config", {}))
+  response: Updates various configurations using settings dictionary.
+- path: ../../codeas/src/codeas/terminal.py
+  function: get_completions
+  code: |-
+    def get_completions(self, document, _):
+            text = document.text_before_cursor
+            words = text.split()
+            last_word = words[-1]
+            if text[0] == "/" and len(words) == 1 and text[-1] != " ":
+                for completion in self.get_commands(text):
+                    yield Completion(completion, -len(text) + 1)
+            elif last_word.startswith("@") and text[-1] != " ":
+                for completion in self.get_agents(last_word):
+                    yield Completion(completion, -len(last_word) + 1)
+            elif "/" in last_word and text[-1] != " ":
+                for completion in self.get_relative_files(last_word):
+                    yield Completion(completion, -len(last_word))
+  response: Returns completions for command-line prompts.
+- path: ../../codeas/src/codeas/terminal.py
+  function: get_commands
+  code: |-
+    def get_commands(self, text):
+            return [
+                command for command in self.commands if ("/" + command).startswith(text)
+            ]
+  response: Returns commands starting with input text.
+- path: ../../codeas/src/codeas/terminal.py
+  function: get_agents
+  code: |-
+    def get_agents(self, last_word):
+            return [agent for agent in self.agents if ("@" + agent).startswith(last_word)]
+  response: Filters agents starting with last_word
+- path: ../../codeas/src/codeas/terminal.py
+  function: get_relative_files
+  code: |-
+    def get_relative_files(self, last_word):
+            return [file_ for file_ in self.relative_files if file_.startswith(last_word)]
+  response: Filters relative files by starting with given word
+- path: ../../codeas/src/codeas/terminal.py
+  function: start_terminal
+  code: |-
+    def start_terminal():
+        chat = Chat()
+        while True:
+            # handle interrupts before prompting
+            try:
+                start_message_block("User input", "bold magenta")
+                session = PromptSession(message="> ", completer=AutoCompleter())
+                message = session.prompt()
+            except KeyboardInterrupt:
+                message = None
+                answer = prompt("Are you sure you want to exit the chat interface? (y/n): ")
+                if answer == "y":
+                    break
+            # handle exceptions while the chat assistant is running
+            try:
+                if message and isinstance(message, str):
+                    end_message_block("bold magenta")
+                    chat.ask(message)
+            except KeyboardInterrupt:
+                if chat.get_last_message() == message:
+                    chat.remove_last_message()
+            except ChatExitException:
+                message = None
+                answer = prompt("Are you sure you want to exit the chat interface? (y/n): ")
+                if answer == "y":
+                    break
+  response: Interactive chat interface with exception handling.
+- path: ../../codeas/src/codeas/tools.py
+  function: list_files
+  code: |-
+    def list_files(params: ListFileParams):
+        """list all of the files in a given directory"""
+        codebase = Codebase(base_dir=params.dir_path)
+        return codebase.get_modules_paths()
+  response: List files in a directory.
+- path: ../../codeas/src/codeas/tools.py
+  function: return_answer
+  code: |-
+    def return_answer(params: ReturnAnswerParams):
+        """returns the final answer to the user"""
+        return params.answer
+  response: Returns the final answer from the input parameters.
+- path: ../../codeas/src/codeas/tools.py
+  function: add_files_in_dir
+  code: |-
+    def add_files_in_dir(params: ReadDirParams):
+        """adds all files in a given directory to the context"""
+        files = []
+        codebase = Codebase(base_dir=params.path)
+        for file_path in codebase.get_modules_paths():
+            params = ReadFileParams(path=file_path, structure_only=params.structure_only)
+            file_ = read_file(params)
+            files.append(file_)
+        return files
+  response: Adds files from dir to context.
+- path: ../../codeas/src/codeas/tools.py
+  function: view_file
+  code: |-
+    def view_file(params: ReadFileParams):
+        """view the content of a file"""
+        # we are simply changing the function naming here for agent prompting purposes
+        return read_file(params)
+  response: Returns content of a file.
+- path: ../../codeas/src/codeas/tools.py
+  function: add_file
+  code: |-
+    def add_file(params: ReadFileParams):
+        """adds a new file to the context"""
+        # we are simply changing the function naming here for agent prompting purposes
+        return read_file(params)
+  response: Adds and reads a new file.
+- path: ../../codeas/src/codeas/tools.py
+  function: read_file
+  code: |-
+    def read_file(params: ReadFileParams):
+        """reads the content of a file"""
+        if params.structure_only:
+            codebase = Codebase()
+            content = codebase.get_file_structure(params.path)
+        else:
+            with open(params.path) as f:
+                lines = f.readlines()
+                content = "".join(lines[params.line_start - 1 : params.line_end])
+                params.line_end = len(lines) if params.line_end == -1 else params.line_end
+        return File(
+            path=params.path,
+            content=content,
+            line_start=params.line_start,
+            line_end=params.line_end,
+        )
+  response: Reads file content and returns file details.
+- path: ../../codeas/src/codeas/tools.py
+  function: add_file_element
+  code: |-
+    def add_file_element(params: ReadElementParams):
+        """adds a file element to the context"""
+        # we are simply changing the function naming here for agent prompting purposes
+        return read_file_element(params)
+  response: Adds file element to context with parameters.
+- path: ../../codeas/src/codeas/tools.py
+  function: read_file_element
+  code: |-
+    def read_file_element(params: ReadElementParams):
+        """reads given element from a file. At least one of 'function_name' or a 'class_name' must be given. For methods, both should be given"""
+        if params.function_name and params.class_name:
+            return read_method(params.path, params.function_name, params.class_name)
+        elif params.function_name:
+            return read_function(params.path, params.function_name)
+        elif params.class_name:
+            return read_class(params.path, params.class_name)
+  response: Reads element from file based on given parameters.
+- path: ../../codeas/src/codeas/tools.py
+  function: read_function
+  code: |-
+    def read_function(path: str, name: str):
+        """reads a given function from a file"""
+        codebase = Codebase()
+        return codebase.get_functions(path, name)
+  response: reads function from file and returns it
+- path: ../../codeas/src/codeas/tools.py
+  function: read_class
+  code: |-
+    def read_class(path: str, name: str):
+        """reads a given class from a file"""
+        codebase = Codebase()
+        return codebase.get_classes(path, name)
+  response: Reads class from a file using codebase.
+- path: ../../codeas/src/codeas/tools.py
+  function: read_method
+  code: |-
+    def read_method(path: str, name: str, class_name: str):
+        """reads a given method from a file"""
+        codebase = Codebase()
+        return codebase.get_methods(path, name, class_name)
+  response: Reads method from file using Codebase and returns method.
+- path: ../../codeas/src/codeas/tools.py
+  function: create_file
+  code: |-
+    def create_file(params: CreateFileParams):
+        """creates a new file with the given content"""
+        if not os.path.exists(os.path.dirname(params.path)):
+            os.makedirs(os.path.dirname(params.path))
+
+        if os.path.exists(params.path):
+            if params.append:
+                with open(params.path, "a") as f:
+                    f.write(params.content)
+            else:
+                raise FileExistsError(f"File {params.path} already exists")
+        else:
+            with open(params.path, "w") as f:
+                f.write(params.content)
+  response: Creates or appends content to a new file.
+- path: ../../codeas/src/codeas/tools.py
+  function: modify_file
+  code: |-
+    def modify_file(params: ModifyFileParams):
+        """modifies the content of a file"""
+        # WARNING: currently not use due to difficulty for LLM to recognize lines to modify
+        with open(params.path, "r") as f:
+            lines = f.readlines()
+
+        lines[params.line_start - 1 : params.line_end] = params.new_content
+
+        with open(params.path, "w") as f:
+            f.writelines(lines)
+  response: Modifies file content based on parameters.
+- path: ../../codeas/src/codeas/tools.py
+  function: get_function_schema
+  code: |-
+    def get_function_schema(function):
+        signature = inspect.signature(function)
+        first_parameter = next(iter(signature.parameters.values()), None)
+        if first_parameter is not None and issubclass(
+            first_parameter.annotation, BaseModel
+        ):
+            schema = first_parameter.annotation.model_json_schema()
+            schema.pop("title", None)
+            for prop in schema.get("properties", {}).values():
+                prop.pop("title", None)
+            return schema
+        else:
+            return {}
+  response: Returns the JSON schema for the first function parameter.
+- path: ../../codeas/src/codeas/tools.py
+  function: get_schemas
+  code: |-
+    def get_schemas(functions: list):
+        if functions is not None:
+            schemas = []
+            for function in functions:
+                schemas.append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": function.__name__,
+                            "description": function.__doc__,
+                            "parameters": get_function_schema(function),
+                        },
+                    }
+                )
+            return schemas
+  response: Returns schemas of input functions.
+- path: ../../codeas/src/codeas/codebase.py
+  function: get_modules_paths
+  code: |-
+    def get_modules_paths(self):
+            paths = []
+            for path in self._get_paths_recursively(self.base_dir):
+                paths.append(path)
+            return paths
+  response: Returns paths of all modules in directory.
+- path: ../../codeas/src/codeas/codebase.py
+  function: _get_paths_recursively
+  code: |-
+    def _get_paths_recursively(self, path: str):
+            paths = self._get_matching_paths(path)
+            for path in paths:
+                if path.is_dir():
+                    yield from self._get_paths_recursively(path)
+                else:
+                    yield str(path)
+  response: Recursively retrieves file paths.
+- path: ../../codeas/src/codeas/codebase.py
+  function: _get_matching_paths
+  code: |-
+    def _get_matching_paths(self, path):
+            return list(
+                path
+                for path in Path(path).iterdir()
+                if self._not_match(path, self.exclude_patterns)
+                and self._match(path, self.include_file_patterns)
+            )
+  response: Returns list of matching paths based on inclusion and exclusion patterns.
+- path: ../../codeas/src/codeas/codebase.py
+  function: _not_match
+  code: |-
+    def _not_match(self, path: Path, patterns: list):
+            if any(patterns):
+                for pattern in patterns:
+                    if fnmatch(path.name, pattern):
+                        return False
+                return True
+            else:
+                return True
+  response: Checks if path matches any pattern from the list.
+- path: ../../codeas/src/codeas/codebase.py
+  function: _match
+  code: |-
+    def _match(self, path: Path, file_patterns: list, match_dir: bool = False):
+            if any(file_patterns):
+                if path.is_file():
+                    return any([fnmatch(path.name, pattern) for pattern in file_patterns])
+                if match_dir and path.is_dir():
+                    return any(
+                        [any(list(path.glob(f"**/{pattern}"))) for pattern in file_patterns]
+                    )
+            return True
+  response: Checks if file or directory matches patterns.
+- path: ../../codeas/src/codeas/codebase.py
+  function: parse_root_node
+  code: |-
+    def parse_root_node(self, path: str):
+            self._set_parser(path)
+            with open(path) as source:
+                module_content = source.read()
+            return self._parser.parse(bytes(module_content, "utf8")).root_node
+  response: '"Function parses root node from file."'
+- path: ../../codeas/src/codeas/codebase.py
+  function: _set_parser
+  code: |-
+    def _set_parser(self, path: str):
+            """Reads the tree sitter grammar file and sets the selected language.
+            The grammar file is hardcoded by now. Pending test on different OS."""
+            language_ext = os.path.splitext(path)[1]
+            language = LANG_EXTENSION_MAP[language_ext]
+            if language != "python":
+                raise NotImplementedError(
+                    f"Can't parse {path}. Parsing {language} files is not supported yet."
+                )
+            self._language = tree_sitter_languages.get_language(language)
+            self._parser = Parser()
+            self._parser.set_language(self._language)
+  response: Sets tree sitter parser for selected language.
+- path: ../../codeas/src/codeas/codebase.py
+  function: get_tree
+  code: |-
+    def get_tree(self):
+            tree = ""
+            for path_element in self._get_tree_recursively(self.base_dir):
+                tree += f"{path_element}\n"
+            return tree
+  response: Returns a formatted string of directory tree.
+- path: ../../codeas/src/codeas/codebase.py
+  function: _get_tree_recursively
+  code: "def _get_tree_recursively(self, path: str, prefix: str = \"\"):\n       \
+    \ paths = self._get_matching_paths(path)\n        space = \"    \"\n        branch\
+    \ = \"\u2502   \"\n        tee = \"\u251C\u2500\u2500 \"\n        last = \"\u2514\
+    \u2500\u2500 \"\n        # paths each get pointers that are \u251C\u2500\u2500\
+    \ with a final \u2514\u2500\u2500 :\n        pointers = [tee] * (len(paths) -\
+    \ 1) + [last]\n        for pointer, path in zip(pointers, paths):\n          \
+    \  if path.is_dir() and self._match(path, self.include_file_patterns, True):\n\
+    \                yield prefix + pointer + path.name + \"/\"\n            elif\
+    \ path.is_file():\n                yield prefix + pointer + path.name\n\n    \
+    \        if path.is_dir():  # extend the prefix and recurse:\n               \
+    \ extension = branch if pointer == tee else space\n                # i.e. space\
+    \ because last, \u2514\u2500\u2500 , above so no more |\n                yield\
+    \ from self._get_tree_recursively(path, prefix=prefix + extension)"
+  response: Generates a directory tree recursively.
+- path: ../../codeas/src/codeas/codebase.py
+  function: get_standalone_functions
+  code: |-
+    def get_standalone_functions(self, path: str, name: str = None):
+            functions = self.get_functions(path, name)
+            methods = self.get_methods(path, name)
+            return list(set(functions).difference(methods))
+  response: Returns standalone functions from given path and name.
+- path: ../../codeas/src/codeas/codebase.py
+  function: get_functions
+  code: "def get_functions(self, path: str, name: str = None):\n        root_node\
+    \ = self.parse_root_node(path)\n        if name and \".\" in name:\n         \
+    \   class_name, function_name = name.split(\".\")\n            return self.get_methods(path,\
+    \ function_name, class_name)\n        else:\n            query_scm = \"\"\"\n\
+    \            (function_definition\n            name: (identifier) @function_name)\
+    \ \n            \"\"\".strip()\n            query = self._language.query(query_scm)\n\
+    \            Function = namedtuple(\"Function\", \"path name content node\")\n\
+    \            functions = []\n            for node, _ in query.captures(root_node):\n\
+    \                if name:\n                    if node.text.decode() == name:\n\
+    \                        functions.append(\n                            Function(\n\
+    \                                path=path,\n                                name=node.text.decode(),\n\
+    \                                content=node.parent.text.decode(),\n        \
+    \                        node=node.parent,\n                            )\n  \
+    \                      )\n                else:\n                    functions.append(\n\
+    \                        Function(\n                            path=path,\n \
+    \                           name=node.text.decode(),\n                       \
+    \     content=node.parent.text.decode(),\n                            node=node.parent,\n\
+    \                        )\n                    )\n            return functions"
+  response: Parses function information from file.
+- path: ../../codeas/src/codeas/codebase.py
+  function: get_methods
+  code: |-
+    def get_methods(self, path: str, name: str = None, class_name: str = None):
+            root_node = self.parse_root_node(path)
+            query_scm = """
+            (class_definition
+                name: (identifier) @class_name
+                body: (_
+                (function_definition
+                    name: (identifier) @method_name))
+            )
+            """.strip()
+            if class_name:
+                query_scm = "(" + query_scm + f"(eq? @class_name {class_name}))"
+            query = self._language.query(query_scm)
+            Function = namedtuple("Function", "path name content node")
+            functions = []
+            for node, tag in query.captures(root_node):
+                if tag == "method_name":  # filter out the class_name tags
+                    if name:
+                        if node.text.decode() == name:
+                            functions.append(
+                                Function(
+                                    path=path,
+                                    name=node.text.decode(),
+                                    content=node.parent.text.decode(),
+                                    node=node.parent,
+                                )
+                            )
+                    else:
+                        functions.append(
+                            Function(
+                                path=path,
+                                name=node.text.decode(),
+                                content=node.parent.text.decode(),
+                                node=node.parent,
+                            )
+                        )
+            return functions
+  response: Returns methods from a given file.
+- path: ../../codeas/src/codeas/codebase.py
+  function: get_classes
+  code: "def get_classes(self, path: str, name: str = None):\n        root_node =\
+    \ self.parse_root_node(path)\n        query_scm = \"\"\"\n        (class_definition\n\
+    \        name: (identifier) @class_name) \n        \"\"\".strip()\n        query\
+    \ = self._language.query(query_scm)\n        Class = namedtuple(\"Class\", \"\
+    path name content node\")\n        classes = []\n        for node, _ in query.captures(root_node):\n\
+    \            if name:\n                if node.text.decode() == name:\n      \
+    \              classes.append(\n                        Class(\n             \
+    \               path=path,\n                            name=node.text.decode(),\n\
+    \                            content=node.parent.text.decode(),\n            \
+    \                node=node.parent,\n                        )\n              \
+    \      )\n            else:\n                classes.append(\n               \
+    \     Class(\n                        path=path,\n                        name=node.text.decode(),\n\
+    \                        content=node.parent.text.decode(),\n                \
+    \        node=node.parent,\n                    )\n                )\n       \
+    \ return classes"
+  response: Finds and returns classes in a file.
+- path: ../../codeas/src/codeas/codebase.py
+  function: get_imports
+  code: |-
+    def get_imports(self, path: str):
+            root_node = self.parse_root_node(path)
+            Import = namedtuple("Import", "name code node")
+            imports = []
+            for node in root_node.children:
+                if node.type in ["import_statement", "import_from_statement"]:
+                    imports.append(Import(code=node.text.decode(), node=node))
+            return imports
+  response: Returns imports from file as a list.
+- path: ../../codeas/src/codeas/codebase.py
+  function: get_imports_lines
+  code: |-
+    def get_imports_lines(self, path: str):
+            root_node = self.parse_root_node(path)
+            imports_lines = []
+            for node in root_node.children:
+                if node.type in ["import_statement", "import_from_statement"]:
+                    imports_lines.append(node.start_point[0])
+            return imports_lines
+  response: Returns lines of code containing import statements.
+- path: ../../codeas/src/codeas/codebase.py
+  function: get_file_structure
+  code: |-
+    def get_file_structure(self, path: str):
+            relevant_lines = set()
+            for class_ in self.get_classes(path):
+                relevant_lines.update(self._get_definition_lines(class_.node))
+            for function_ in self.get_functions(path):
+                relevant_lines.update(self._get_definition_lines(function_.node))
+            # relevant_lines.update(self.get_imports_lines(path))
+            file_lines = self._read_files_lines(path)
+            file_subset = self._read_subset_from_lines(file_lines, relevant_lines)
+            return f"# {path}\n" + "".join(file_subset)
+  response: Returns subset of lines from file specified by path.
+- path: ../../codeas/src/codeas/codebase.py
+  function: _get_definition_lines
+  code: |-
+    def _get_definition_lines(self, node):
+            lines = set()
+            for child_node in node.children:
+                if child_node.type in ["parameters", "identifier", "argument_list"]:
+                    lines.update([child_node.start_point[0]])
+            return lines
+  response: Returns set of line numbers for specified node's children.
+- path: ../../codeas/src/codeas/codebase.py
+  function: _read_files_lines
+  code: |-
+    def _read_files_lines(self, path):
+            with open(path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            return lines
+  response: Reads lines from a file and returns them.
+- path: ../../codeas/src/codeas/codebase.py
+  function: _read_subset_from_lines
+  code: |-
+    def _read_subset_from_lines(self, lines, subset_lines):
+            subset = []
+            for i, line in enumerate(lines):
+                if i in subset_lines:
+                    subset.append(line)
+            return subset
+  response: Returns subset of lines based on given subset lines
+- path: ../../codeas/src/codeas/agents.py
+  function: run
+  code: |-
+    def run(self, message: str = None):
+            if message:
+                self.thread.add_message({"role": "user", "content": message})
+            response = self.thread.run()
+            self.thread.add_message(response)
+
+            if "tool_calls" in response and response["tool_calls"] is not None:
+                for tool_call in self.thread.run_calls(response["tool_calls"]):
+                    if isinstance(tool_call["output"], list):
+                        self.context.extend(tool_call["output"])
+                    else:
+                        self.context.append(tool_call["output"])
+
+                    self.thread.add_message(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call["id"],
+                            "content": "Function call completed",
+                        }
+                    )
+  response: Runs a chat bot function, adds user message, runs tools, updates context.
+- path: ../../codeas/src/codeas/agents.py
+  function: run
+  code: |-
+    def run(self, message: str = None):
+            self.thread.add_context(self.context)
+            if message:
+                self.thread.add_message({"role": "user", "content": message})
+            response = self.thread.run()
+            self.thread.add_message(response)
+
+            if "tool_calls" in response and response["tool_calls"] is not None:
+                for tool_call in self.thread.run_calls(response["tool_calls"]):
+                    self.thread.add_message(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call["id"],
+                            "content": "Function call completed",
+                        }
+                    )
+  response: The function adds context, messages, and tool call responses to a thread.
+- path: ../../codeas/src/codeas/agents.py
+  function: run
+  code: |-
+    def run(self, message: str = None):
+            if message:
+                self.thread.add_message({"role": "user", "content": message})
+            response = self.thread.run()
+            self.thread.add_message(response)
+
+            if "tool_calls" in response and response["tool_calls"] is not None:
+                for tool_call in self.thread.run_calls(response["tool_calls"]):
+                    tool_call["output"] = (
+                        tool_call["output"]
+                        if isinstance(tool_call["output"], str)
+                        else str(tool_call["output"])
+                    )
+                    self.thread.add_message(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call["id"],
+                            "content": tool_call["output"],
+                        }
+                    )
+                self._current_step += 1
+
+                if self._current_step > self.max_steps:
+                    return "Maximum number of search steps reached"
+                else:
+                    self.run()
+  response: Executes thread with user and tool messages.
+- path: ../../codeas/src/codeas/chat.py
+  function: ask
+  code: |-
+    def ask(self, message: str):
+            message = self.check_message(message)
+            if any(agent in message for agent in ["@add", "@write", "@search"]):
+                self.run_agent(message)
+            elif any(
+                command in message
+                for command in ["/view", "/clear", "/copy", "/tree", "/exit"]
+            ):
+                self.run_command(message)
+            else:
+                self.run_thread(message)
+  response: Validates message and triggers actions based on keywords.
+- path: ../../codeas/src/codeas/chat.py
+  function: remove_last_message
+  code: |-
+    def remove_last_message(self):
+            self.thread._messages.pop()
+  response: Removes last message from thread.
+- path: ../../codeas/src/codeas/chat.py
+  function: get_last_message
+  code: |-
+    def get_last_message(self):
+            return self.thread._messages[-1]["content"]
+  response: Returns last message content from thread.
+- path: ../../codeas/src/codeas/chat.py
+  function: check_message
+  code: |-
+    def check_message(self, message: str):
+            if "add" in message and "@add" not in message:
+                answer = prompt(
+                    "Did you mean to use @add agent to add context to the conversation? (y/n): "
+                )
+                if answer == "y":
+                    message = message.replace("add", "@add")
+            elif "write" in message and "@write" not in message:
+                answer = prompt(
+                    "Did you mean to use @write agent to write to a file? (y/n): "
+                )
+                if answer == "y":
+                    message = message.replace("write", "@write")
+            elif "search" in message and "@search" not in message:
+                answer = prompt(
+                    "Did you mean to use @search agent to search for a file? (y/n): "
+                )
+                if answer == "y":
+                    message = message.replace("search", "@search")
+            return message
+  response: Checks message for key words, prompts to replace if needed.
+- path: ../../codeas/src/codeas/chat.py
+  function: run_agent
+  code: |-
+    def run_agent(self, message: str):
+            if "@add" in message:
+                agent = ContextAgent()
+                agent.run(message)
+                self.context = agent.context
+            elif "@write" in message:
+                agent = WritingAgent(context=self.context)
+                agent.run(message)
+            elif "@search" in message:
+                agent = SearchAgent()
+                agent.run(message)
+  response: Runs different agents based on input message.
+- path: ../../codeas/src/codeas/chat.py
+  function: run_command
+  code: |-
+    def run_command(self, message: str):
+            if message.strip() == "/view":
+                view_context(self)
+            elif message.strip() == "/clear":
+                clear_chat(self)
+            elif message.strip() == "/copy":
+                copy_last_message(self)
+            elif message.strip() == "/tree":
+                tree_display()
+            elif message.strip() == "/exit":
+                exit_chat()
+  response: Executes specific command based on message input.
+- path: ../../codeas/src/codeas/chat.py
+  function: run_thread
+  code: |-
+    def run_thread(self, message: str):
+            self.thread.add_context(self.context)
+            message = {"role": "user", "content": message}
+            self.thread.add_message(message)
+            response = self.thread.run()
+            self.thread.add_message(response)
+  response: Runs a thread with a given message input.
+- path: ../../codeas/src/codeas/utils.py
+  function: start_message_block
+  code: |-
+    def start_message_block(title: str, color: str):
+        console.print("\n")
+        console.rule(title, style=color)
+  response: Displays titled message block with specified color.
+- path: ../../codeas/src/codeas/utils.py
+  function: end_message_block
+  code: |-
+    def end_message_block(color: str):
+        console.rule(style=color)
+  response: Prints message block in given color.
+- path: ../../codeas/src/codeas/utils.py
+  function: read_yaml
+  code: |-
+    def read_yaml(path):
+        try:
+            with open(path, "r") as yaml_file:
+                return yaml.safe_load(yaml_file)
+        except FileNotFoundError:
+            error_msg = f"File {path} not found."
+            logging.error(error_msg)
+            raise FileNotFoundError(error_msg)
+  response: Read and loads YAML file safely.
+- path: ../../codeas/src/codeas/utils.py
+  function: write_yaml
+  code: |-
+    def write_yaml(path, data):
+        yaml.add_representer(str, str_presenter)
+        yaml.representer.SafeRepresenter.add_representer(str, str_presenter)
+        with open(path, "w") as yaml_file:
+            yaml.dump(
+                data,
+                yaml_file,
+                Dumper=SpaciousDumper,
+                default_flow_style=False,
+                sort_keys=False,
+            )
+  response: Writes data to YAML file
+- path: ../../codeas/src/codeas/utils.py
+  function: write_line_break
+  code: |-
+    def write_line_break(self, data=None):
+            super().write_line_break(data)
+            if len(self.indents) == 1:
+                super().write_line_break()
+  response: Writes line break based on data and indents.
+- path: ../../codeas/src/codeas/utils.py
+  function: str_presenter
+  code: |-
+    def str_presenter(dumper, data):
+        """configures yaml for dumping multiline strings
+        Ref: https://stackoverflow.com/questions/8640959/how-can-i-control-what-scalar-form-pyyaml-uses-for-my-data
+        """
+        if data.count("\n") > 0:  # check for multiline string
+            return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+  response: Configures YAML for multiline strings.
+- path: ../../codeas/src/codeas/utils.py
+  function: copy_files
+  code: |-
+    def copy_files(source_path, target_path):
+        if os.path.isdir(source_path):
+            copytree(source_path, target_path)
+        else:
+            copyfile(source_path, target_path)
+  response: Copies files from source to target.
+- path: ../../codeas/src/codeas/commands.py
+  function: exit_chat
+  code: |-
+    def exit_chat():
+        raise ChatExitException
+  response: Raises a ChatExitException.
+- path: ../../codeas/src/codeas/commands.py
+  function: tree_display
+  code: |-
+    def tree_display():
+        console.rule("Codebase Tree", style="blue")
+        codebase = Codebase()
+        console.print(codebase.get_tree())
+        console.rule(style="blue")
+  response: Displays a tree of the codebase.
+- path: ../../codeas/src/codeas/commands.py
+  function: copy_last_message
+  code: |-
+    def copy_last_message(chat: Chat):
+        pyperclip.copy(chat.thread._messages[-1]["content"])
+  response: Copies last chat message to clipboard.
+- path: ../../codeas/src/codeas/commands.py
+  function: clear_chat
+  code: |-
+    def clear_chat(chat: Chat):
+        chat.thread._messages = []
+        chat.thread._context = []
+        chat.context = []
+  response: Resets chat and thread messages/context.
+- path: ../../codeas/src/codeas/commands.py
+  function: view_context
+  code: |-
+    def view_context(chat: Chat):
+        console.rule("Context", style="blue")
+        if any(chat.context):
+            if os.path.exists(".codeas/context"):
+                shutil.rmtree(".codeas/context")
+
+            for file_ in chat.context:
+                context_path = os.path.join(os.getcwd(), f".codeas/context/{file_.path}")
+                dir_path = os.path.dirname(context_path)
+                if not os.path.exists(dir_path):
+                    os.makedirs(dir_path)
+
+                with open(context_path, "w") as f:
+                    f.write(file_.content)
+
+                if hasattr(file_, "line_end"):
+                    section = (
+                        f"l.{file_.line_start}-{file_.line_end}"
+                        if file_.line_end != -1
+                        else "structure"
+                    )
+                else:
+                    section = file_.name
+
+                console.print(
+                    f"{file_.path} | {section} | {chat.thread.count_tokens(file_.content)} tokens"
+                )
+        else:
+            console.print("No files in context")
+        console.rule(style="blue")
+  response: Saves chat context in files.
