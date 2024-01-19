@@ -54,7 +54,7 @@ class Llm(BaseModel):
             model="gpt-3.5-turbo-instruct",
             prompt=prompt,
             **kwargs,
-        )
+        ), prompt
         
     async def _run_chat_completions(self, prompt, **kwargs):
         messages = [{"role": "user", "content": prompt}]
@@ -62,7 +62,7 @@ class Llm(BaseModel):
             model=self.model,
             messages=messages,
             **kwargs
-        )
+        ), messages
     
     def _batches(self, prompts, batch_size):
         for i in range(0, len(prompts), batch_size):

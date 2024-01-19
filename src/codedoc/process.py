@@ -1,43 +1,56 @@
 import asyncio
-from pydantic import BaseModel
-from tqdm.asyncio import tqdm_asyncio
+from pydantic import BaseModel, PrivateAttr
 
 from codeas.codebase import Codebase
-from codedoc.prompts import EXPLAIN
+from codedoc.prompts import EXPLAIN, EXPLAIN_MODULE
 from codedoc.llm import Llm
 from codedoc.utils import read_file
 
 class RepoProcessor(BaseModel):
     llm: Llm = Llm()
-    use_functions: bool = False
     codebase: Codebase = Codebase()
+    _repo_map: dict = PrivateAttr({})
     
-    def generate_descriptions(self):
-        if self.use_functions:
-            asyncio.run(self.generate_functions_descriptions())
-
-    async def generate_functions_descriptions(self, path: str, max_tokens):
-        prompts = [
-            EXPLAIN.format(max_tokens=max_tokens, code=function.content) 
-            for function in self.codebase.get_functions(path)
-        ]
-        async for result in self.llm.run_batch_completions(prompts):
-            print("RESULT",result.usage)
+    def generate_documentation(self):
+        self._repo_map["modules_desc"] = asyncio.run(
+            self.generate_modules_doc(
+                EXPLAIN_MODULE,
+                num_tokens=200,
+                openai_args={"max_tokens": 220})
+        )
+        
+    async def generate_modules_doc(self, template: str, openai_args: dict, **template_args):
+        modules_doc = {}
+        prompts = self.get_module_prompts(template, **template_args)
+        mapping = self.get_prompt_mapping(prompts)
+        async for response, prompt in self.llm.run_batch_completions(
+            prompts, **openai_args
+        ):
+            if len(response.choices) == 1:
+                if isinstance(prompt, list):
+                    module = mapping[prompt[0]["content"]]
+                    modules_doc[module] = response.choices[0].message.content
+                else:
+                    module = mapping[prompt]
+                    modules_doc[module] = response.choices[0].text
+            elif len(response.choices) > 1:
+                for choice in response.choices:
+                    module = mapping[prompt[choice.index]]
+                    modules_doc[module] = choice.text
+        return modules_doc
     
-    async def generate_modules_descriptions(self, max_tokens):
-        prompts = [
-            EXPLAIN.format(max_tokens=max_tokens, code=read_file(path)) 
+    def get_module_prompts(self, template, **kwargs):
+        return [
+            template.format(code=read_file(path), **kwargs) 
             for path in self.codebase.get_modules_paths()
         ]
-        async for result in self.llm.run_batch_completions(prompts):
-            print("RESULT",result.usage)
-        
+    
+    def get_prompt_mapping(self, prompts):
+        return dict(zip(prompts, self.codebase.get_modules_paths()))
         
 if __name__ == "__main__":
-    processor = RepoProcessor()
-    asyncio.run(
-        processor.generate_modules_descriptions(
-            # path="../codeas/src/codeas/thread.py", 
-            max_tokens=10
-        )
-    )
+    processor = RepoProcessor(
+        codebase={"base_dir": "./src"}, 
+        llm={"model": "gpt-3.5-turbo-1106"})
+    processor.generate_documentation()
+    processor._repo_map

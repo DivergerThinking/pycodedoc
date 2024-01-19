@@ -38,4 +38,4 @@ def estimate_cost(cb, model):
 
 if __name__ == "__main__":
     cb = Codebase()
-    print(estimate_cost(cb, model="gpt-3.5-turbo-1106"))
+    print(estimate_cost(cb, model="gpt-3.5-turbo-instruct"))
