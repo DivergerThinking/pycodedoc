@@ -1,10 +1,18 @@
 import asyncio
+import logging
 from pydantic import BaseModel, PrivateAttr
 
 from codeas.codebase import Codebase
-from codedoc.prompts import EXPLAIN, EXPLAIN_MODULE
+from codedoc.prompts import EXPLAIN_MODULE, SUMMARIZE_MODULE
 from codedoc.llm import Llm
 from codedoc.utils import read_file
+
+logging.basicConfig(level=logging.DEBUG)
+
+NUM_TOKENS = {
+    "short_desc": 40,
+    "long_desc": 200,
+}
 
 class RepoProcessor(BaseModel):
     llm: Llm = Llm()
@@ -12,45 +20,58 @@ class RepoProcessor(BaseModel):
     _repo_map: dict = PrivateAttr({})
     
     def generate_documentation(self):
-        self._repo_map["modules_desc"] = asyncio.run(
-            self.generate_modules_doc(
-                EXPLAIN_MODULE,
-                num_tokens=200,
-                openai_args={"max_tokens": 220})
+        asyncio.run(self._generate_documentation())
+        
+    async def _generate_documentation(self):
+        self._repo_map["modules_long_desc"] = await self.run_completions(
+            prompts_map=self.prompts_modules_long_desc(),
+            max_tokens= int(NUM_TOKENS["long_desc"]*1.2)
+        )
+        self._repo_map["modules_short_desc"] = await self.run_completions(
+            prompts_map=self.prompts_modules_short_desc(),
+            max_tokens= int(NUM_TOKENS["short_desc"]*1.2)
         )
         
-    async def generate_modules_doc(self, template: str, openai_args: dict, **template_args):
-        modules_doc = {}
-        prompts = self.get_module_prompts(template, **template_args)
-        mapping = self.get_prompt_mapping(prompts)
+    async def run_completions(self, prompts_map: dict, **kwargs):
+        prompts = list(prompts_map.keys())
+        responses = {}
         async for response, prompt in self.llm.run_batch_completions(
-            prompts, **openai_args
+            prompts, **kwargs
         ):
+            logging.info("Gathering request")
             if len(response.choices) == 1:
                 if isinstance(prompt, list):
-                    module = mapping[prompt[0]["content"]]
-                    modules_doc[module] = response.choices[0].message.content
+                    key = prompts_map[prompt[0]["content"]]
+                    responses[key] = response.choices[0].message.content
                 else:
-                    module = mapping[prompt]
-                    modules_doc[module] = response.choices[0].text
+                    key = prompts_map[prompt]
+                    responses[key] = response.choices[0].text
             elif len(response.choices) > 1:
                 for choice in response.choices:
-                    module = mapping[prompt[choice.index]]
-                    modules_doc[module] = choice.text
-        return modules_doc
+                    key = prompts_map[prompt[choice.index]]
+                    responses[key] = choice.text
+        return responses
     
-    def get_module_prompts(self, template, **kwargs):
-        return [
-            template.format(code=read_file(path), **kwargs) 
+    def prompts_modules_long_desc(self):
+        return {
+            EXPLAIN_MODULE.format(
+                code=read_file(path), num_tokens=NUM_TOKENS["long_desc"]
+            ): path 
             for path in self.codebase.get_modules_paths()
-        ]
+        }
     
-    def get_prompt_mapping(self, prompts):
-        return dict(zip(prompts, self.codebase.get_modules_paths()))
+    def prompts_modules_short_desc(self):
+        return {
+            SUMMARIZE_MODULE.format(
+                text=self._repo_map["modules_long_desc"][path], 
+                num_tokens=NUM_TOKENS["short_desc"]
+            ): path
+            for path in self.codebase.get_modules_paths()
+        }
         
 if __name__ == "__main__":
     processor = RepoProcessor(
         codebase={"base_dir": "./src"}, 
-        llm={"model": "gpt-3.5-turbo-1106"})
+        llm={"model": "gpt-3.5-turbo-instruct"})
     processor.generate_documentation()
     processor._repo_map
