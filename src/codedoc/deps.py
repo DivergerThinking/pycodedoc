@@ -1,9 +1,24 @@
 import ast
 from collections import OrderedDict, defaultdict, deque
 
+from pydantic import BaseModel
 from code2flow import engine
 
-class DepsParser:
+class DepsParser(BaseModel):
+    upstream_depth: int = 0
+    downstream_depth: int = 2
+    
+    def get_nodes_in_common(self, module_paths):
+        groups, nodes, edges = self.get_cross_entities(module_paths)
+        return [edge_node.node.name for edge_node in nodes]
+    
+    def get_cross_entities(self, module_paths):
+        groups, nodes, edges = self.parse_files(module_paths)
+        cross_edges = self._find_cross_edges(edges)
+        cross_nodes = self._get_edge_nodes(cross_edges)
+        cross_groups = engine._filter_groups_for_subset(cross_nodes, groups)
+        return cross_groups, cross_nodes, cross_edges
+        
     def extract_dependency_code(self, base_file, *files):
         """extracts the code that is relevant to the base file"""
         files = [base_file] + list(files)
@@ -53,6 +68,13 @@ class DepsParser:
             if edge.node0.file_token != edge.node1.file_token:
                 cross_edges.append(edge)
         return cross_edges
+    
+    def _get_edge_nodes(self, edges):
+        edge_nodes = set()
+        for edge in edges:
+            edge_nodes.add(edge.node0)
+            edge_nodes.add(edge.node1)
+        return list(edge_nodes)
 
     def _add_parents_attr(self, edges):
         """adds some addidional attributes from the parent nodes"""
@@ -80,7 +102,7 @@ class DepsParser:
     
     def _get_nodes_execution_flow(self, node, groups, nodes, edges):
         """get the execution flow of nodes related to executing a specific node"""
-        subset_params = engine.SubsetParams(node.token, 2, 2)
+        subset_params = engine.SubsetParams(node.token, self.upstream_depth, self.downstream_depth)
         _, _, new_edges = engine._filter_for_subset(subset_params, nodes, edges, groups)
         return self._sort_nodes(new_edges)
 
@@ -110,6 +132,7 @@ class DepsParser:
             return []
 
     def build_execution_graph(self, base_file, *files):
+        """builds a graph of the execution flow of the base file and its dependencies"""
         graph = self._build_graph(base_file, *files)
         # Find the root nodes
         root_node = set(graph.keys()) - {
@@ -183,7 +206,6 @@ class DepsParser:
 
     def _graph_to_string(self, node, graph, depth=0):
         """converts a graph to string format"""
-        
         arrow = "-> Calls " if depth != 0 else ""
         result = f"    " * depth + arrow + node + "()\n"
         for neighbor in graph[node]:

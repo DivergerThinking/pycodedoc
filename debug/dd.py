@@ -1,19 +1,20 @@
-import asyncio
+from codedoc.deps import DepsParser
+from code2flow import engine
 
-async def print_numbers():
-    for i in range(5):
-        print(f"Number: {i}")
-        await asyncio.sleep(1)
+parser = DepsParser(downstream_depth=2, upstream_depth=2)
 
-async def print_letters():
-    for letter in "ABCDE":
-        print(f"Letter: {letter}")
-        await asyncio.sleep(1)
+groups, nodes, edges = parser.parse_files(["./src/codedoc/process.py", "./src/codedoc/parser.py", "./src/codedoc/llm.py"])
 
-async def main():
-    task1 = asyncio.create_task(print_numbers())
-    task2 = asyncio.create_task(print_letters())
+cross_edges = parser._find_cross_edges(edges)
 
-    await asyncio.gather(task1, task2)
+edge_nodes = set()
+for cross_edge in cross_edges:
+    edge_nodes.add(cross_edge.node0)
+    edge_nodes.add(cross_edge.node1)
+    
+with open("./test.gv", 'w') as fh:
+    engine.write_file(fh, nodes=edge_nodes, edges=cross_edges,
+                        groups=groups, hide_legend=False,
+                        no_grouping=True, as_json=False)
 
-asyncio.run(main())
+engine._generate_final_img("./test.gv", "png", "./test.png", len(edges))

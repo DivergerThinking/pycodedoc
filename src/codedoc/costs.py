@@ -1,5 +1,5 @@
 import tiktoken
-from codeas.codebase import Codebase
+from codedoc.parser import Parser
 
 MODEL_INFO = {
     "gpt-4-1106-preview": {"context": 128192, "inprice": 0.01, "outprice": 0.03},
@@ -15,27 +15,35 @@ MODEL_INFO = {
     "gpt-3.5-turbo-16k-0613": {"context": 16385, "inprice": 0.0030, "outprice": 0.0040},
 }
 
+
 def calc_cost(intokens, outtokens, model):
-    return round((
-        intokens * MODEL_INFO[model]["inprice"] 
-        + outtokens * MODEL_INFO[model]["outprice"]
-    ) / 1000, 8)
+    return round(
+        (
+            intokens * MODEL_INFO[model]["inprice"]
+            + outtokens * MODEL_INFO[model]["outprice"]
+        )
+        / 1000,
+        8,
+    )
+
 
 def count_tokens(text: str, model: str):
     encoding = tiktoken.encoding_for_model(model)
     return len(encoding.encode(text))
 
+
 def estimate_cost(cb, model):
     cost = 0
-    for path in cb.get_modules_paths():
-        for function in cb.get_functions(path):
-            cost += calc_cost(
-                intokens=count_tokens(function.content, model), 
-                outtokens=10, 
-                model=model
-            )
+    # for path in cb.get_modules_paths():
+    #     for function in cb.get_functions(path):
+    #         cost += calc_cost(
+    #             intokens=count_tokens(function.content, model),
+    #             outtokens=10,
+    #             model=model,
+    #         )
     return cost
 
+
 if __name__ == "__main__":
-    cb = Codebase()
-    print(estimate_cost(cb, model="gpt-3.5-turbo-instruct"))
+    parser = Parser()
+    print(estimate_cost(parser, model="gpt-3.5-turbo-instruct"))

@@ -1,68 +1,175 @@
-import asyncio
 import logging
-from pydantic import BaseModel, PrivateAttr
+import ast
 
-from codeas.codebase import Codebase
+from pydantic import BaseModel, PrivateAttr
+from collections import defaultdict
+
 from codedoc.llm import Llm
-from codedoc.prompts import modules_desc_args, project_desc_args
+from codedoc.prompts import (
+    functions_desc_prompts, 
+    classes_desc_prompts, 
+    modules_desc_prompts, 
+    modules_deps_desc_prompts,
+    project_overview_prompt
+)
+from codedoc.parser import Parser
 
 logging.basicConfig(level=logging.INFO)
 
 
+class Descriptions(BaseModel):
+    entities: dict = defaultdict(dict)
+    functions: dict = defaultdict(dict)
+    classes: dict = defaultdict(dict)
+    modules: dict = defaultdict(dict)
+    modules_deps: dict = defaultdict(dict)
+    project: str = ""
+
 class RepoProcessor(BaseModel):
-    llm: Llm = Llm(model="gpt-3.5-turbo-1106")
-    codebase: Codebase = Codebase()
-    _docu: dict = PrivateAttr({})
-    
+    parse_structure: bool = False
+    use_descriptions: bool = False
+    add_dependencies: bool = True
+    create_graphs: bool = True
+    llm: Llm = Llm()
+    parser: Parser = Parser()
+    _descriptions: Descriptions = PrivateAttr(Descriptions())
+
+    def get_descriptions(self, attr: str = None):
+        if attr is None:
+            return self._descriptions
+        else:
+            return getattr(self._descriptions, attr)
+
     def generate_documentation(self):
-        asyncio.run(self._generate_documentation())
+        if self.use_descriptions:
+            self.generate_functions_desc()
+        self.generate_classes_desc()
+        self.generate_modules_desc()
+        self.generate_modules_deps_desc()
+        self.generate_project_desc()
         self.write_markdown()
+
+    def generate_functions_desc(self, module_path: str = None):
+        functions_code = self.parser.get_functions(module_path, attr="code")
+        prompts = functions_desc_prompts(functions_code)
+        responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True)
+        functions = self.parser.get_functions(module_path)
+        for function, response in zip(functions, responses):
+            self._descriptions.entities[function.path][function.uname] = response["content"]
+            self._descriptions.functions[function.path][function.uname] = response["content"]
     
+    def generate_classes_desc(self, module_path: str = None):
+        classes = self.parser.get_classes(module_path)
+        classes_code = self.get_classes_code(classes)
+        prompts = classes_desc_prompts(classes_code)
+        responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True)
+        for class_, response in zip(classes, responses):
+            self._descriptions.entities[class_.path][class_.name] = response["content"]
+            self._descriptions.classes[class_.path][class_.name] = response["content"]
+    
+    def get_classes_code(self, classes):
+        classes_code = []
+        for class_ in classes:
+            if self.parse_structure:
+                if self.use_descriptions:
+                    descriptions = self._descriptions.entities[class_.path]
+                else:
+                    descriptions = None
+                code = self.parser.get_code_structure(class_, descriptions=descriptions)
+            else:
+                code = ast.unparse(class_.node)
+            classes_code.append(code)
+        return classes_code
+    
+    def generate_modules_desc(self, module_path: str = None):
+        modules = self.parser.get_modules(module_path)
+        modules_code = self.get_modules_code(modules)
+        prompts = modules_desc_prompts(modules_code)
+        responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True)
+        for module, response in zip(modules, responses):
+            self._descriptions.modules[module.path] = response["content"]
+    
+    def get_modules_code(self, modules):
+        modules_code = []
+        for module in modules:
+            if self.parse_structure:
+                if self.use_descriptions:
+                    descriptions = self._descriptions.entities[module.path]
+                else:
+                    descriptions = None
+                code = self.parser.get_code_structure(module, descriptions=descriptions)
+            else:
+                code = ast.unparse(module.node)
+            if self.create_graphs:
+                self.parser.write_graphs(module)
+            modules_code.append(code)
+        return modules_code
+    
+    def generate_modules_deps_desc(self, module_path: str = None):
+        modules = self.parser.get_modules(module_path)
+        modules_paths, modules_code, deps_code, execution_graphs = [], [], [], []
+        for module in modules:
+            deps = self.parser.get_module_deps(module.path)
+            if any(deps):
+                module_code, dep_code, execution_graph = self.parser.get_deps_code(module, deps, self.create_graphs)
+                if execution_graph != "":
+                    modules_code.append(module_code)
+                    deps_code.append(dep_code)
+                    execution_graphs.append(execution_graph)
+                    modules_paths.append(module.path)
+                else:
+                    self._descriptions.modules_deps[module.path] = "No dependencies with other modules."
+            else:
+                self._descriptions.modules_deps[module.path] = "No dependencies with other modules."
+        prompts = modules_deps_desc_prompts(modules_code, deps_code, execution_graphs)
+        responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True)
+        for module_path, response in zip(modules_paths, responses):
+            self._descriptions.modules_deps[module_path] = response["content"]
+    
+    def generate_project_desc(self):
+        modules_docu = self.get_modules_descriptions()
+        prompt = project_overview_prompt(modules_docu, self.parser.get_tree())
+        response = self.llm.run_completions(**prompt, timeout=10, stream=True)
+        self._descriptions.project = response["content"]
+    
+    def get_modules_descriptions(self):
+        modules_docu = ""
+        if self.add_dependencies:
+            for module_path in self._descriptions.modules.keys():
+                module_desc = self._descriptions.modules[module_path]
+                module_deps_desc = self._descriptions.modules_deps[module_path]
+                modules_docu += f"\n\nFILE {module_path}:\n\n\tDescription:\n\t{module_desc}\n\n\tDependencies with other modules:\n\t{module_deps_desc}\n"
+        else:
+            for module_path, module_desc in self._descriptions.modules.items():
+                modules_docu += f"\n\nFILE {module_path}:\n\n\tDescription:\n\t{module_desc}\n"
+        return modules_docu
+
     def write_markdown(self):
         md = "# Project Overview\n"
-        md += f"{self._docu['project_desc']}\n\n"
-        
+        md += f"{self._descriptions['project']}\n\n"
+
         md += "## Folder structure\n"
-        md += f"{self.codebase.get_tree()}\n\n"
-        
+        md += f"{self.parser.get_tree()}\n\n"
+
         md += "## Modules\n"
-        for name, desc in self._docu["modules_desc"].items():
+        for name, desc in self._descriptions.modules.items():
             md += f"### {name}\n"
             md += f"{desc}\n\n"
 
         with open("modules-instruct.md", "w") as f:
             f.write(md)
-        
-    async def _generate_documentation(self):
-        self._docu[f"modules_desc"] = await self.run_completions(**modules_desc_args(self))
-        self._docu[f"project_desc"] = await self.run_completions(**project_desc_args(self))
-        
-    async def run_completions(self, prompts_map: dict, **kwargs):
-        prompts = list(prompts_map.keys())
-        responses = {}
-        async for response, prompt in self.llm.run_batch_completions(
-            prompts, **kwargs
-        ):
-            # logging.info("Gathering request")
-            if len(response.choices) == 1:
-                if hasattr(response.choices[0], "message"):
-                    key = prompts_map[prompt[0]["content"]]
-                    responses[key] = response.choices[0].message.content
-                else:
-                    key = (
-                        prompts_map[prompt] if isinstance(prompt, str) 
-                        else prompts_map[prompt[0]]
-                    )
-                    responses[key] = response.choices[0].text
-            elif len(response.choices) > 1:
-                for choice in response.choices:
-                    key = prompts_map[prompt[choice.index]]
-                    responses[key] = choice.text
-        return responses
-        
+
+
 if __name__ == "__main__":
     processor = RepoProcessor(
-        codebase={"base_dir": "./src"}, 
-        llm={"model": "gpt-3.5-turbo-1106"})
-    processor.generate_documentation()
-    processor._docu
+        parser={"base_dir": "./src/codedoc"}
+    )
+    # processor.generate_functions_desc(module_path="./src/codedoc/process.py")
+    # processor.generate_classes_desc(module_path="process.py")
+    processor.generate_modules_desc()
+    processor.generate_modules_deps_desc()
+    print(processor._descriptions.modules_deps)
+    # processor.generate_project_desc()
+#     # res = functions_desc_args(processor, "./src/codedoc/process.py")
+#     asyncio.run(processor._generate_documentation())
+#     processor._descriptions
