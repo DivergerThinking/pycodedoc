@@ -6,7 +6,7 @@ from typing import Any, List, Union
 from pydantic import BaseModel, PrivateAttr, Field
 from fnmatch import fnmatch
 from pathlib import Path
-from codedoc.deps import DepsParser
+# from codedoc.deps import DepsParser
 from code2flow import engine
 
 CONFIG = {
@@ -86,7 +86,7 @@ class Parser(BaseModel):
     strip_imports: bool = False
     strip_globals: bool = True
     _modules: List[Module] = PrivateAttr(default_factory=list)
-    _deps_parser: DepsParser = PrivateAttr(DepsParser())
+    # _deps_parser: DepsParser = PrivateAttr(DepsParser())
 
     def model_post_init(self, __context: Any) -> None:
         self.parse_modules()
@@ -173,12 +173,12 @@ class Parser(BaseModel):
             self.parse_function_structure(entity.node, descriptions)
         return ast.unparse(entity.node)
     
-    def get_deps_code(self, module: Module, deps: List[Module], create_graphs: bool = False):
+    def get_deps_code(self, module: Module, deps: List[Module], output_dir: str, create_graphs: bool = False):
         module = copy.deepcopy(module)
         deps = [copy.deepcopy(dep) for dep in deps]
         groups, nodes, edges, execution_graph = self.parse_module_deps(module, deps)
         if create_graphs:
-            file_path = os.path.join("graphs", f"{module.name}_deps.gv")
+            file_path = os.path.join(output_dir, "graphs", f"{module.name}_deps.gv")
             self._write_graphs(groups, nodes, edges, file_path)
         deps_code = self.concat_dep_code(deps)
         return ast.unparse(module.node), deps_code, execution_graph
@@ -191,7 +191,7 @@ class Parser(BaseModel):
         return deps_code
     
     def write_graphs(self, module: Module, output_dir: str):
-        groups, nodes, edges = self._deps_parser.parse_files([os.path.join(self.base_dir,module.path)])
+        groups, nodes, edges = self.parse_files_flows([os.path.join(self.base_dir,module.path)])
         file_path = os.path.join(output_dir, "graphs", f"{module.name}.gv")
         self._write_graphs(groups, nodes, edges, file_path)
     
@@ -338,8 +338,10 @@ class Parser(BaseModel):
     
     def parse_module_deps(self, module: Module, deps: List[Module]):
         module_paths = [os.path.join(self.base_dir,module.path)] + [os.path.join(self.base_dir,dep.path) for dep in deps]
-        groups, nodes, edges = self._deps_parser.get_cross_entities(module_paths)
-        nodes_in_common = [edge_node.node.name for edge_node in nodes]
+        # groups, nodes, edges = self._deps_parser.get_cross_entities(module_paths)
+        groups, nodes, edges = self.parse_files_flows(module_paths)
+        groups, nodes, edges = self.get_related_entities(groups, edges)
+        nodes_in_common = [edge_node.token for edge_node in nodes]
         classes_in_common = [subgroup.token for group in groups for subgroup in group.subgroups]
         
         for module in module, *deps:
@@ -366,13 +368,61 @@ class Parser(BaseModel):
         for edge in edges:
             execution_flow += f"{edge.node0.file_token}.py {edge.node0.token}() -> {edge.node1.file_token}.py {edge.node1.token}()\n"
         return groups, nodes, edges, execution_flow
+    
+    def parse_files_flows(self, paths: list):
+        # paths = [os.path.join(self.base_dir, file_) for file_ in files]
+        return engine.map_it(
+            paths,
+            extension="py", 
+            no_trimming=False, exclude_namespaces=[], exclude_functions=[],
+           include_only_namespaces=[], include_only_functions=[],
+           skip_parse_errors=False, lang_params=engine.LanguageParams())
+        
+    
+    def get_related_entities(self, groups, edges):
+        cross_edges = self._find_cross_edges(edges)
+        cross_nodes = self._get_edge_nodes(cross_edges)
+        cross_groups = engine._filter_groups_for_subset(cross_nodes, groups)
+        return cross_groups, cross_nodes, cross_edges
+    
+    def _find_cross_edges(self, edges):
+        """finds edges that cross file boundaries"""
+        self._add_parents_attr(edges)
+        cross_edges = []
+        for edge in edges:
+            if edge.node0.file_token != edge.node1.file_token:
+                cross_edges.append(edge)
+        return cross_edges
+
+    def _add_parents_attr(self, edges):
+        """adds some addidional attributes from the parent nodes"""
+        for edge in edges:
+            self._add_nodes_attrs(edge.node0, edge.node0)
+            self._add_nodes_attrs(edge.node1, edge.node1)
+    
+    def _add_nodes_attrs(self, orig_node, node):
+        """recursively adds attributes from parent nodes"""
+        if node.parent.group_type == "FILE":
+            orig_node.file_token = node.parent.token
+            # orig_node.path = node.parent.path
+        else:
+            self._add_nodes_attrs(orig_node, node.parent)
+    
+    def _get_edge_nodes(self, edges):
+        edge_nodes = set()
+        for edge in edges:
+            edge_nodes.add(edge.node0)
+            edge_nodes.add(edge.node1)
+        return list(edge_nodes)
 
         
 # if __name__ == "__main__":
 
 #     parser = Parser(base_dir="./src/codedoc")
-#     module = parser.get_modules()[5]
-#     parser.write_graphs(module)
+#     a,b,c = parser.parse_files_flows(["parser.py", "docgen.py"])
+#     a,b,c = parser.get_related_entities(a,c)
+#     print(a)
+    # parser.write_graphs(module)
     # deps = parser.get_module_deps(module)
     # a,b,c = parser.get_code_deps_structure(module, deps, True)
     # print(a)

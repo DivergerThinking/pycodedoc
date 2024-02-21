@@ -215,7 +215,7 @@ class DepsParser(BaseModel):
 
 if __name__ == "__main__":
     pars = DepsParser()
-    graph = pars.extract_dependency_code("./src/codedoc/process.py", "./src/codedoc/executor.py")
+    graph = pars.extract_dependency_code("./src/codedoc/parser.py", "./src/codedoc/docgen.py")
     print(graph)
     # print(extract_dependency_code("./src/codedoc/process.py", "./src/codedoc/llm.py"))
     # print(build_dependency_graph("./src/codedoc/process.py", "./src/codedoc/llm.py"))

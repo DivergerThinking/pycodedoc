@@ -1,5 +1,6 @@
 import argparse
 from codedoc.docgen import DocGen
+from codedoc.costs import estimate_cost
 import toml
 
 def main(
@@ -9,7 +10,8 @@ def main(
     use_structure: bool, 
     ignore_relations: bool, 
     ignore_graphs: bool,
-    model: str
+    model: str,
+    estimate: bool
 ):
     if prompts_path:
         with open(prompts_path, "r") as f:
@@ -32,7 +34,10 @@ def main(
             output_path=output_path,
             model=model
         )
-    docgen.generate_documentation()
+    if estimate:
+        print(f"Estimated cost of generating the documentation: ${estimate_cost(docgen)}")
+    else:
+        docgen.generate_documentation()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate documentation.')
@@ -50,5 +55,7 @@ if __name__ == "__main__":
                         help='Create execution graphs of the code')
     parser.add_argument('-m','--model', type=str, default="gpt-3.5-turbo-1106",
                         help='The OpenAI model to use for generating the documentation')
+    parser.add_argument('-e','--estimate', action='store_true',
+                        help='Prints estimation cost of generating the documentation')
     args = parser.parse_args()
-    main(args.dir, args.prompts, args.output, args.use_structure, args.ignore_relations, args.ignore_graphs, args.model)
+    main(args.dir, args.prompts, args.output, args.use_structure, args.ignore_relations, args.ignore_graphs, args.model, args.estimate)

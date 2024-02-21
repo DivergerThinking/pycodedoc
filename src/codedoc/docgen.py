@@ -106,17 +106,17 @@ class DocGen(BaseModel):
         for module in modules:
             deps = self.parser.get_module_deps(module.path)
             if any(deps):
-                module_code, dep_code, execution_graph = self.parser.get_deps_code(module, deps, self.create_graphs)
+                module_code, dep_code, execution_graph = self.parser.get_deps_code(module, deps, self.output_dir, self.create_graphs)
                 if execution_graph != "":
                     modules_code.append(module_code)
                     deps_code.append(dep_code)
                     execution_graphs.append(execution_graph)
                     modules_paths.append(module.path)
                 else:
-                    self._descriptions.modules_deps[module.path] = "No dependencies with other modules."
+                    self._descriptions.modules_deps[module.path] = None
             else:
-                self._descriptions.modules_deps[module.path] = "No dependencies with other modules."
-        prompts = get_modules_deps_prompts(modules_code, deps_code, execution_graphs, **self.prompts["functions"])
+                self._descriptions.modules_deps[module.path] = None
+        prompts = get_modules_deps_prompts(modules_code, deps_code, execution_graphs, **self.prompts["modules_deps"])
         responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True, model=self.model)
         for module_path, response in zip(modules_paths, responses):
             self._descriptions.modules_deps[module_path] = response["content"]
@@ -133,17 +133,19 @@ class DocGen(BaseModel):
             for module_path in self._descriptions.modules.keys():
                 module_desc = self._descriptions.modules[module_path]
                 module_deps_desc = self._descriptions.modules_deps[module_path]
-                modules_docu += f"\n\n**Module {module_path}**:\n\n\tDescription:\n\t{module_desc}\n\n\tDependencies with other modules:\n\t{module_deps_desc}\n"
+                modules_docu += f"\n\n**Module {module_path}**:\n\nDescription:\n{module_desc}\n"
+                if module_deps_desc:
+                    modules_docu += f"\nRelations with other modules:\n{module_deps_desc}\n"
         else:
             for module_path, module_desc in self._descriptions.modules.items():
-                modules_docu += f"\n\n**Module {module_path}**:\n\n\tDescription:\n\t{module_desc}\n"
+                modules_docu += f"\n\n**Module {module_path}**:\n\nDescription:\n{module_desc}\n"
         return modules_docu
     
     def get_classes_descriptions(self):
         classes_docu = ""
         for class_path, class_ in self._descriptions.classes.items():
             for class_name, class_desc in class_.items():
-                classes_docu += f"\n**class {class_name} [{class_path}]**:\n\n\t{class_desc}\n"
+                classes_docu += f"\n**class {class_name} [{class_path}]**:\n\n{class_desc}\n"
         return classes_docu
 
     def write_markdown(self):
@@ -169,15 +171,21 @@ class DocGen(BaseModel):
             
             md += "\n### MODULES\n"
             for module in self.parser.get_modules_paths():
-                file_path = f'./graphs/{os.path.splitext(module)[0]}.png'
+                file_path = f'{self.output_dir}/graphs/{os.path.splitext(module)[0]}.png'
                 if os.path.exists(file_path):
-                    md += f"\n![Alt text]({file_path})\n"
+                    rel_path = os.path.relpath(file_path, self.output_dir)
+                    md += f"\n![Alt text]({rel_path})\n"
             
             if self.add_relations:
                 md += "\n### MODULE RELATIONSHIPS\n"
                 for module in self.parser.get_modules_paths():
-                    file_path = f'./graphs/{os.path.splitext(module)[0]}_deps.png'
+                    file_path = f'{self.output_dir}/graphs/{os.path.splitext(module)[0]}_deps.png'
                     if os.path.exists(file_path):
-                        md += f"\n![Alt text]({file_path})\n"
+                        rel_path = os.path.relpath(file_path, self.output_dir)
+                        md += f"\n![Alt text]({rel_path})\n"
         
         return md
+
+if __name__ == "__main__":
+    docgen = DocGen(parser= {"base_dir": "./src/codedoc"})
+    docgen.generate_documentation()

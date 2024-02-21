@@ -16,18 +16,28 @@ PROMPTS = {
     "modules": {
         "instructions" : """
 
-Write a short descriptions explaining what this module does in around 50 words. 
+Write a short descriptions explaining what this module does in maximum 50 words. 
 Focus on the high level functionality of the module, not the implementation details like class and function names.
 
 """.strip(),
         "system_prompt": SYSTEM_PROMPT
     },
     "modules_deps": {
-        "instructions" : "Write a short description on how a given module interacts with other modules it depends on.",
+        "instructions" : """
+
+Write a short description on how a given module interacts with other modules it depends on in maximum 50 words. 
+Make sure to mention all of the module names and the interaction with each one of them
+
+""".strip(),
         "system_prompt": SYSTEM_PROMPT
     },
     "project": {
-        "instructions" : "Write a high level overview of the project that encapsulates its main use cases and core functionalities.",
+        "instructions" : """
+
+Write a high level overview of the project that encapsulates its main use cases and core functionalities.
+Do not explain what every module does (this will be added to the documentation separately) but rather what the project as a whole does.
+
+""".strip(),
         "system_prompt": SYSTEM_PROMPT
     },
 }
