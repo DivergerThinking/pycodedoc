@@ -1,4 +1,3 @@
-import logging
 import ast
 import os
 
@@ -15,9 +14,6 @@ from codedoc.prompts import (
 )
 from codedoc.parser import Parser
 
-logging.basicConfig(level=logging.INFO)
-
-
 class Descriptions(BaseModel):
     entities: dict = defaultdict(dict)
     functions: dict = defaultdict(dict)
@@ -26,7 +22,7 @@ class Descriptions(BaseModel):
     modules_deps: dict = defaultdict(dict)
     project: str = ""
 
-class RepoProcessor(BaseModel):
+class DocGen(BaseModel):
     parse_structure: bool = False
     use_descriptions: bool = False
     add_dependencies: bool = True
@@ -184,17 +180,3 @@ class RepoProcessor(BaseModel):
             if os.path.exists(file_path):
                 md += f"\n![Alt text]({file_path})\n"
         return md
-
-if __name__ == "__main__":
-    processor = RepoProcessor(
-        parser={"base_dir": "./src/codedoc"}
-    )
-    # processor.generate_functions_desc(module_path="./src/codedoc/process.py")
-    # processor.generate_classes_desc(module_path="process.py")
-    processor.generate_modules_desc()
-    processor.generate_modules_deps_desc()
-    print(processor._descriptions.modules_deps)
-    # processor.generate_project_desc()
-#     # res = functions_desc_args(processor, "./src/codedoc/process.py")
-#     asyncio.run(processor._generate_documentation())
-#     processor._descriptions
