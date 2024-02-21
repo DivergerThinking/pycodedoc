@@ -6,11 +6,12 @@ from collections import defaultdict
 
 from codedoc.llm import Llm
 from codedoc.prompts import (
-    functions_desc_prompts, 
-    classes_desc_prompts, 
-    modules_desc_prompts, 
-    modules_deps_desc_prompts,
-    project_overview_prompt
+    get_functions_prompts, 
+    get_classes_prompts, 
+    get_modules_prompts, 
+    get_modules_deps_prompts,
+    get_project_prompt,
+    PROMPTS
 )
 from codedoc.parser import Parser
 
@@ -23,10 +24,10 @@ class Descriptions(BaseModel):
     project: str = ""
 
 class DocGen(BaseModel):
-    parse_structure: bool = False
-    use_descriptions: bool = False
-    add_dependencies: bool = True
+    use_structure: bool = False
+    add_relations: bool = True
     create_graphs: bool = True
+    prompts: dict = PROMPTS
     llm: Llm = Llm()
     parser: Parser = Parser()
     _descriptions: Descriptions = PrivateAttr(Descriptions())
@@ -38,17 +39,18 @@ class DocGen(BaseModel):
             return getattr(self._descriptions, attr)
 
     def generate_documentation(self):
-        if self.use_descriptions:
+        if self.use_structure:
             self.generate_functions_desc()
         self.generate_classes_desc()
         self.generate_modules_desc()
-        self.generate_modules_deps_desc()
+        if self.add_relations:
+            self.generate_modules_deps_desc()
         self.generate_project_desc()
         self.write_markdown()
 
     def generate_functions_desc(self, module_path: str = None):
         functions_code = self.parser.get_functions(module_path, attr="code")
-        prompts = functions_desc_prompts(functions_code)
+        prompts = get_functions_prompts(functions_code, **self.prompts["functions"])
         responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True)
         functions = self.parser.get_functions(module_path)
         for function, response in zip(functions, responses):
@@ -58,7 +60,7 @@ class DocGen(BaseModel):
     def generate_classes_desc(self, module_path: str = None):
         classes = self.parser.get_classes(module_path)
         classes_code = self.get_classes_code(classes)
-        prompts = classes_desc_prompts(classes_code)
+        prompts = get_classes_prompts(classes_code, **self.prompts["classes"])
         responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True)
         for class_, response in zip(classes, responses):
             self._descriptions.entities[class_.path][class_.name] = response["content"]
@@ -67,11 +69,8 @@ class DocGen(BaseModel):
     def get_classes_code(self, classes):
         classes_code = []
         for class_ in classes:
-            if self.parse_structure:
-                if self.use_descriptions:
-                    descriptions = self._descriptions.entities[class_.path]
-                else:
-                    descriptions = None
+            if self.use_structure:
+                descriptions = self._descriptions.entities[class_.path]
                 code = self.parser.get_code_structure(class_, descriptions=descriptions)
             else:
                 code = ast.unparse(class_.node)
@@ -81,7 +80,7 @@ class DocGen(BaseModel):
     def generate_modules_desc(self, module_path: str = None):
         modules = self.parser.get_modules(module_path)
         modules_code = self.get_modules_code(modules)
-        prompts = modules_desc_prompts(modules_code)
+        prompts = get_modules_prompts(modules_code, **self.prompts["modules"])
         responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True)
         for module, response in zip(modules, responses):
             self._descriptions.modules[module.path] = response["content"]
@@ -89,11 +88,8 @@ class DocGen(BaseModel):
     def get_modules_code(self, modules):
         modules_code = []
         for module in modules:
-            if self.parse_structure:
-                if self.use_descriptions:
-                    descriptions = self._descriptions.entities[module.path]
-                else:
-                    descriptions = None
+            if self.use_structure:
+                descriptions = self._descriptions.entities[module.path]
                 code = self.parser.get_code_structure(module, descriptions=descriptions)
             else:
                 code = ast.unparse(module.node)
@@ -118,20 +114,20 @@ class DocGen(BaseModel):
                     self._descriptions.modules_deps[module.path] = "No dependencies with other modules."
             else:
                 self._descriptions.modules_deps[module.path] = "No dependencies with other modules."
-        prompts = modules_deps_desc_prompts(modules_code, deps_code, execution_graphs)
+        prompts = get_modules_deps_prompts(modules_code, deps_code, execution_graphs, **self.prompts["functions"])
         responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True)
         for module_path, response in zip(modules_paths, responses):
             self._descriptions.modules_deps[module_path] = response["content"]
     
     def generate_project_desc(self):
         modules_docu = self.get_modules_descriptions()
-        prompt = project_overview_prompt(modules_docu, self.parser.get_tree())
+        prompt = get_project_prompt(modules_docu, self.parser.get_tree(), **self.prompts["project"])
         response = self.llm.run_completions(**prompt, timeout=10, stream=True)
         self._descriptions.project = response["content"]
     
     def get_modules_descriptions(self):
         modules_docu = ""
-        if self.add_dependencies:
+        if self.add_relations:
             for module_path in self._descriptions.modules.keys():
                 module_desc = self._descriptions.modules[module_path]
                 module_deps_desc = self._descriptions.modules_deps[module_path]
