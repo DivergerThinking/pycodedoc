@@ -28,6 +28,8 @@ class DocGen(BaseModel):
     add_relations: bool = True
     create_graphs: bool = True
     prompts: dict = PROMPTS
+    output_dir: str = "./docs"
+    model: str = "gpt-3.5-turbo-1106"
     llm: Llm = Llm()
     parser: Parser = Parser()
     _descriptions: Descriptions = PrivateAttr(Descriptions())
@@ -51,7 +53,7 @@ class DocGen(BaseModel):
     def generate_functions_desc(self, module_path: str = None):
         functions_code = self.parser.get_functions(module_path, attr="code")
         prompts = get_functions_prompts(functions_code, **self.prompts["functions"])
-        responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True)
+        responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True, model=self.model)
         functions = self.parser.get_functions(module_path)
         for function, response in zip(functions, responses):
             self._descriptions.entities[function.path][function.uname] = response["content"]
@@ -61,7 +63,7 @@ class DocGen(BaseModel):
         classes = self.parser.get_classes(module_path)
         classes_code = self.get_classes_code(classes)
         prompts = get_classes_prompts(classes_code, **self.prompts["classes"])
-        responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True)
+        responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True, model=self.model)
         for class_, response in zip(classes, responses):
             self._descriptions.entities[class_.path][class_.name] = response["content"]
             self._descriptions.classes[class_.path][class_.name] = response["content"]
@@ -81,7 +83,7 @@ class DocGen(BaseModel):
         modules = self.parser.get_modules(module_path)
         modules_code = self.get_modules_code(modules)
         prompts = get_modules_prompts(modules_code, **self.prompts["modules"])
-        responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True)
+        responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True, model=self.model)
         for module, response in zip(modules, responses):
             self._descriptions.modules[module.path] = response["content"]
     
@@ -94,7 +96,7 @@ class DocGen(BaseModel):
             else:
                 code = ast.unparse(module.node)
             if self.create_graphs:
-                self.parser.write_graphs(module)
+                self.parser.write_graphs(module, self.output_dir)
             modules_code.append(code)
         return modules_code
     
@@ -115,14 +117,14 @@ class DocGen(BaseModel):
             else:
                 self._descriptions.modules_deps[module.path] = "No dependencies with other modules."
         prompts = get_modules_deps_prompts(modules_code, deps_code, execution_graphs, **self.prompts["functions"])
-        responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True)
+        responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True, model=self.model)
         for module_path, response in zip(modules_paths, responses):
             self._descriptions.modules_deps[module_path] = response["content"]
     
     def generate_project_desc(self):
         modules_docu = self.get_modules_descriptions()
         prompt = get_project_prompt(modules_docu, self.parser.get_tree(), **self.prompts["project"])
-        response = self.llm.run_completions(**prompt, timeout=10, stream=True)
+        response = self.llm.run_completions(**prompt, timeout=10, stream=True, model=self.model)
         self._descriptions.project = response["content"]
     
     def get_modules_descriptions(self):
@@ -146,7 +148,7 @@ class DocGen(BaseModel):
 
     def write_markdown(self):
         md = self.generate_markdown()
-        with open("project.md", "w") as f:
+        with open(os.path.join(self.output_dir, "project-doc.md"), "w") as f:
             f.write(md)
     
     def generate_markdown(self):
@@ -162,17 +164,20 @@ class DocGen(BaseModel):
         md += "\n\n## CLASSES\n"
         md += self.get_classes_descriptions()
         
-        md += "\n\n## EXECUTION FLOWS\n"
+        if self.create_graphs:
+            md += "\n\n## EXECUTION FLOWS\n"
+            
+            md += "\n### MODULES\n"
+            for module in self.parser.get_modules_paths():
+                file_path = f'./graphs/{os.path.splitext(module)[0]}.png'
+                if os.path.exists(file_path):
+                    md += f"\n![Alt text]({file_path})\n"
+            
+            if self.add_relations:
+                md += "\n### MODULE RELATIONSHIPS\n"
+                for module in self.parser.get_modules_paths():
+                    file_path = f'./graphs/{os.path.splitext(module)[0]}_deps.png'
+                    if os.path.exists(file_path):
+                        md += f"\n![Alt text]({file_path})\n"
         
-        md += "\n### MODULES\n"
-        for module in self.parser.get_modules_paths():
-            file_path = f'./docs/graphs/{os.path.splitext(module)[0]}.png'
-            if os.path.exists(file_path):
-                md += f"\n![Alt text]({file_path})\n"
-        
-        md += "\n### DEPENDENCIES\n"
-        for module in self.parser.get_modules_paths():
-            file_path = f'./docs/graphs/{os.path.splitext(module)[0]}_deps.png'
-            if os.path.exists(file_path):
-                md += f"\n![Alt text]({file_path})\n"
         return md

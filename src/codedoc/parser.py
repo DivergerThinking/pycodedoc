@@ -178,7 +178,7 @@ class Parser(BaseModel):
         deps = [copy.deepcopy(dep) for dep in deps]
         groups, nodes, edges, execution_graph = self.parse_module_deps(module, deps)
         if create_graphs:
-            file_path = os.path.join("docs", "graphs", f"{module.name}_deps.gv")
+            file_path = os.path.join("graphs", f"{module.name}_deps.gv")
             self._write_graphs(groups, nodes, edges, file_path)
         deps_code = self.concat_dep_code(deps)
         return ast.unparse(module.node), deps_code, execution_graph
@@ -190,9 +190,9 @@ class Parser(BaseModel):
             deps_code += ast.unparse(dep.node)
         return deps_code
     
-    def write_graphs(self, module: Module):
+    def write_graphs(self, module: Module, output_dir: str):
         groups, nodes, edges = self._deps_parser.parse_files([os.path.join(self.base_dir,module.path)])
-        file_path = os.path.join("docs", "graphs", f"{module.name}.gv")
+        file_path = os.path.join(output_dir, "graphs", f"{module.name}.gv")
         self._write_graphs(groups, nodes, edges, file_path)
     
     def _write_graphs(self, groups, nodes, edges, file_path):
