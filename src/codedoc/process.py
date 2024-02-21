@@ -1,5 +1,6 @@
 import logging
 import ast
+import os
 
 from pydantic import BaseModel, PrivateAttr
 from collections import defaultdict
@@ -138,27 +139,51 @@ class RepoProcessor(BaseModel):
             for module_path in self._descriptions.modules.keys():
                 module_desc = self._descriptions.modules[module_path]
                 module_deps_desc = self._descriptions.modules_deps[module_path]
-                modules_docu += f"\n\nFILE {module_path}:\n\n\tDescription:\n\t{module_desc}\n\n\tDependencies with other modules:\n\t{module_deps_desc}\n"
+                modules_docu += f"\n\n**Module {module_path}**:\n\n\tDescription:\n\t{module_desc}\n\n\tDependencies with other modules:\n\t{module_deps_desc}\n"
         else:
             for module_path, module_desc in self._descriptions.modules.items():
-                modules_docu += f"\n\nFILE {module_path}:\n\n\tDescription:\n\t{module_desc}\n"
+                modules_docu += f"\n\n**Module {module_path}**:\n\n\tDescription:\n\t{module_desc}\n"
         return modules_docu
+    
+    def get_classes_descriptions(self):
+        classes_docu = ""
+        for class_path, class_ in self._descriptions.classes.items():
+            for class_name, class_desc in class_.items():
+                classes_docu += f"\n**class {class_name} [{class_path}]**:\n\n\t{class_desc}\n"
+        return classes_docu
 
     def write_markdown(self):
-        md = "# Project Overview\n"
-        md += f"{self._descriptions['project']}\n\n"
-
-        md += "## Folder structure\n"
-        md += f"{self.parser.get_tree()}\n\n"
-
-        md += "## Modules\n"
-        for name, desc in self._descriptions.modules.items():
-            md += f"### {name}\n"
-            md += f"{desc}\n\n"
-
-        with open("modules-instruct.md", "w") as f:
+        md = self.generate_markdown()
+        with open("project.md", "w") as f:
             f.write(md)
+    
+    def generate_markdown(self):
+        md = "# PROJECT OVERVIEW\n\n"
+        md += f"{self.get_descriptions('project')}\n\n"
 
+        md += "## PROJECT STRUCTURE\n\n"
+        md += f"```\n{self.parser.get_tree()}```\n\n"
+
+        md += "## MODULES"
+        md += self.get_modules_descriptions()
+
+        md += "\n\n## CLASSES\n"
+        md += self.get_classes_descriptions()
+        
+        md += "\n\n## EXECUTION FLOWS\n"
+        
+        md += "\n### MODULES\n"
+        for module in self.parser.get_modules_paths():
+            file_path = f'./docs/graphs/{os.path.splitext(module)[0]}.png'
+            if os.path.exists(file_path):
+                md += f"\n![Alt text]({file_path})\n"
+        
+        md += "\n### DEPENDENCIES\n"
+        for module in self.parser.get_modules_paths():
+            file_path = f'./docs/graphs/{os.path.splitext(module)[0]}_deps.png'
+            if os.path.exists(file_path):
+                md += f"\n![Alt text]({file_path})\n"
+        return md
 
 if __name__ == "__main__":
     processor = RepoProcessor(

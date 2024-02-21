@@ -23,7 +23,7 @@ def functions_desc_prompts(functions_code: list, **kwargs) -> dict:
     return {"messages_batches": messages_batches, "max_tokens": max_tokens_buffer}
 
 
-FUNCTIONS_DESC = """
+CLASSES_DESC = """
 Write a concised description of what the class does in AT MOST {num_tokens} tokens:
 {code}.
 """
@@ -31,7 +31,7 @@ Write a concised description of what the class does in AT MOST {num_tokens} toke
 
 def classes_desc_prompts(classes_code: list) -> dict:
     prompts = [
-        FUNCTIONS_DESC.format(code=code, num_tokens=NUM_TOKENS["classes_desc"])
+        CLASSES_DESC.format(code=code, num_tokens=NUM_TOKENS["classes_desc"])
         for code in classes_code
     ]
     messages_batches = [[{"role":"user", "content": prompt}] for prompt in prompts]

@@ -1,6 +1,7 @@
 import os
 import ast
 import copy
+import logging
 from typing import Any, List, Union
 from pydantic import BaseModel, PrivateAttr, Field
 from fnmatch import fnmatch
@@ -166,7 +167,6 @@ class Parser(BaseModel):
             entity = copy.deepcopy(entity)
         if isinstance(entity, Module):
             self.parse_module_structure(entity.node, descriptions)
-            
         elif isinstance(entity, Class):
             self.parse_class_structure(entity.node, descriptions)
         elif isinstance(entity, Function):
@@ -196,14 +196,17 @@ class Parser(BaseModel):
         self._write_graphs(groups, nodes, edges, file_path)
     
     def _write_graphs(self, groups, nodes, edges, file_path):
-        if not os.path.exists(os.path.dirname(file_path)):
-            os.makedirs(os.path.dirname(file_path))
-        with open(file_path, 'w') as fh:
-            engine.write_file(fh, nodes=nodes, edges=edges,
-                                groups=groups, hide_legend=False,
-                                no_grouping=False, as_json=False)
-        png_file_path = os.path.splitext(file_path)[0] + ".png"
-        engine._generate_final_img(file_path, "png", png_file_path, len(edges))
+        if any(edges):
+            if not os.path.exists(os.path.dirname(file_path)):
+                os.makedirs(os.path.dirname(file_path))
+            with open(file_path, 'w') as fh:
+                engine.write_file(fh, nodes=nodes, edges=edges,
+                                    groups=groups, hide_legend=False,
+                                    no_grouping=False, as_json=False)
+            png_file_path = os.path.splitext(file_path)[0] + ".png"
+            engine._generate_final_img(file_path, "png", png_file_path, len(edges))
+        else:
+            logging.warning(f"No graph is created for {file_path} as no execution flow is found.")
     
     def parse_function_structure(self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef], descriptions: dict = None):
         node.body = []
