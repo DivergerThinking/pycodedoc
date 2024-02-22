@@ -1,2 +1,28 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pycodedoc"
+authors = [
+    {name = "Manuel Renner", email = "manuel.renner@diverger.ai"},
+]
+license = {text = "MIT License"}
+description = "Improve your codebase with LLMs using the right context for the right prompts."
+requires-python = ">=3.9,<3.12"
+dynamic = ["version", "readme", "dependencies"]
+
+[project.urls]
+Source = 'https://github.com/DivergerThinking/pycodedoc'
+Homepage = 'https://diverger.ai'
+
+[project.scripts]
+pycodedoc = 'pycodedoc.cli:app'
+
+[tool.setuptools.dynamic]
+version = {attr = "pycodedoc.__version__"}
+readme = {file=["README.md"], content-type="text/markdown"}
+dependencies = {file = ["requirements.txt"]}
+
 [tool.isort]
 profile = "black"

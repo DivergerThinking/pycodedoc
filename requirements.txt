@@ -1,0 +1,8 @@
+openai>=1.0
+pydantic>=2.0
+code2flow==2.5.1
+rich>=13.0
+tenacity>=8.0
+tiktoken
+typer
+toml

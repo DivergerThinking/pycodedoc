@@ -6,17 +6,17 @@ You will be given some instructions as well as the specific part of the codebase
 
 PROMPTS = {
     "functions": {
-        "instructions": "Write a concised description of what the function does in around 10 words.",
+        "instructions": "Write a concise description of what the function does in around 10 words. Only add the description, no titles.",
         "system_prompt": SYSTEM_PROMPT,
     },
     "classes": {
-        "instructions": "Write a concised description of what the class does in around 10 words.",
+        "instructions": "Write a concise description of what the class does in around 10 words. Only add the description, no titles.",
         "system_prompt": SYSTEM_PROMPT,
     },
     "modules": {
         "instructions": """
 
-Write a short descriptions explaining what this module does in maximum 50 words. 
+Write a short descriptions explaining what this module does in maximum 50 words. Only add the description, no titles. 
 Focus on the high level functionality of the module, not the implementation details like class and function names.
 
 """.strip(),
@@ -25,8 +25,8 @@ Focus on the high level functionality of the module, not the implementation deta
     "modules_deps": {
         "instructions": """
 
-Write a short description on how a given module interacts with other modules it depends on in maximum 50 words. 
-Make sure to mention all of the module names and the interaction with each one of them
+Write a short description on how a given module interacts with other modules it depends on in maximum 50 words. Only add the description, no titles.
+Make sure to mention all of the module names and the interaction with each one of them.
 
 """.strip(),
         "system_prompt": SYSTEM_PROMPT,
