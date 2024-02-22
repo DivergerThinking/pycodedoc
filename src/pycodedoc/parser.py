@@ -1,12 +1,12 @@
-import os
 import ast
 import copy
-from typing import Any, List, Union
-from pydantic import BaseModel, PrivateAttr, Field
+import os
 from fnmatch import fnmatch
 from pathlib import Path
-from code2flow import engine
+from typing import Any, List, Union
 
+from code2flow import engine
+from pydantic import BaseModel, Field, PrivateAttr
 
 CONFIG = {
     "include_file_patterns": ["*.py"],
@@ -53,7 +53,7 @@ class Module(BaseModel):
     code: str
     entities: List[Union[Function, Class]] = Field(default_factory=list)
     name: str = ""
-    
+
     def model_post_init(self, __context: Any) -> None:
         self.name = os.path.splitext(os.path.split(self.path)[-1])[0]
 
@@ -85,7 +85,6 @@ class Parser(BaseModel):
     strip_imports: bool = False
     strip_globals: bool = True
     _modules: List[Module] = PrivateAttr(default_factory=list)
-    # _deps_parser: DepsParser = PrivateAttr(DepsParser())
 
     def model_post_init(self, __context: Any) -> None:
         self.parse_modules()
@@ -95,7 +94,7 @@ class Parser(BaseModel):
             self._modules.append(self.parse_module(module_path))
 
     def parse_module(self, module_path: str) -> Module:
-        with open(os.path.join(self.base_dir,module_path), "r") as source:
+        with open(os.path.join(self.base_dir, module_path), "r") as source:
             module = source.read()
         node = ast.parse(module)
         module = Module(path=module_path, node=node, code=ast.unparse(node))
@@ -104,22 +103,28 @@ class Parser(BaseModel):
 
     def get_modules(self, module_path: str = None, attr: str = None):
         if module_path:
-            absolute_module_path = os.path.abspath(os.path.join(self.base_dir,module_path))
-            modules = [module for module in self._modules if os.path.abspath(os.path.join(self.base_dir,module.path)) == absolute_module_path]
+            absolute_module_path = os.path.abspath(
+                os.path.join(self.base_dir, module_path)
+            )
+            modules = [
+                module
+                for module in self._modules
+                if os.path.abspath(os.path.join(self.base_dir, module.path))
+                == absolute_module_path
+            ]
         else:
             modules = self._modules
         if attr:
             return [getattr(module, attr) for module in modules]
         else:
             return modules
-    
+
     def get_module(self, module_path: str, attr: str = None):
         if attr is None:
             return self.get_modules(module_path)[0]
         else:
             return getattr(self.get_modules(module_path)[0], attr)
-        
-        
+
     def get_classes(self, module_path: str = None, attr: str = None):
         modules = self.get_modules(module_path)
         classes = []
@@ -158,9 +163,12 @@ class Parser(BaseModel):
             return [getattr(entity, attr) for entity in entities]
         else:
             return entities
-        
+
     def get_code_structure(
-        self, entity: Union[Function, Module, Class], descriptions: dict = None, copy_entity: bool = False
+        self,
+        entity: Union[Function, Module, Class],
+        descriptions: dict = None,
+        copy_entity: bool = False,
     ):
         if copy_entity:
             entity = copy.deepcopy(entity)
@@ -171,8 +179,14 @@ class Parser(BaseModel):
         elif isinstance(entity, Function):
             self.parse_function_structure(entity.node, descriptions)
         return ast.unparse(entity.node)
-    
-    def get_deps_code(self, module: Module, deps: List[Module], output_dir: str, create_graphs: bool = False):
+
+    def get_deps_code(
+        self,
+        module: Module,
+        deps: List[Module],
+        output_dir: str,
+        create_graphs: bool = False,
+    ):
         module = copy.deepcopy(module)
         deps = [copy.deepcopy(dep) for dep in deps]
         groups, nodes, edges, execution_graph = self.parse_module_deps(module, deps)
@@ -181,41 +195,53 @@ class Parser(BaseModel):
             self._write_graphs(groups, nodes, edges, file_path)
         deps_code = self.concat_dep_code(deps)
         return ast.unparse(module.node), deps_code, execution_graph
-    
+
     def concat_dep_code(self, deps):
         deps_code = ""
         for dep in deps:
             deps_code += f"\n\nFILE {dep.name}.py:\n\n"
             deps_code += ast.unparse(dep.node)
         return deps_code
-    
+
     def write_graphs(self, module: Module, output_dir: str):
-        groups, nodes, edges = self.parse_files_flows([os.path.join(self.base_dir,module.path)])
+        groups, nodes, edges = self.parse_files_flows(
+            [os.path.join(self.base_dir, module.path)]
+        )
         file_path = os.path.join(output_dir, "graphs", f"{module.name}.gv")
         self._write_graphs(groups, nodes, edges, file_path)
-    
+
     def _write_graphs(self, groups, nodes, edges, file_path):
         if any(edges):
             if not os.path.exists(os.path.dirname(file_path)):
                 os.makedirs(os.path.dirname(file_path))
-            with open(file_path, 'w') as fh:
-                engine.write_file(fh, nodes=nodes, edges=edges,
-                                    groups=groups, hide_legend=False,
-                                    no_grouping=False, as_json=False)
+            with open(file_path, "w") as fh:
+                engine.write_file(
+                    fh,
+                    nodes=nodes,
+                    edges=edges,
+                    groups=groups,
+                    hide_legend=False,
+                    no_grouping=False,
+                    as_json=False,
+                )
             png_file_path = os.path.splitext(file_path)[0] + ".png"
             engine._generate_final_img(file_path, "png", png_file_path, len(edges))
         # else:
         #     logging.warning(f"No graph is created for {file_path} as no execution flow is found.")
-    
-    def parse_function_structure(self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef], descriptions: dict = None):
+
+    def parse_function_structure(
+        self,
+        node: Union[ast.FunctionDef, ast.AsyncFunctionDef],
+        descriptions: dict = None,
+    ):
         node.body = []
         if descriptions:
             # add docstring to function body
-            docstring = descriptions[function.uname]
+            docstring = descriptions[node.uname]
             node.body.append(ast.Expr(ast.Constant(docstring)))
         # add ellipsis to function body
         node.body.append(ast.Expr(ast.Constant(...)))
-        
+
     def parse_class_structure(self, node: ast.ClassDef, descriptions: dict = None):
         for child in node.body:
             if type(child) in (ast.FunctionDef, ast.AsyncFunctionDef):
@@ -226,7 +252,7 @@ class Parser(BaseModel):
                     child.body.append(ast.Expr(ast.Constant(docstring)))
                 # add ellipsis to child body
                 child.body.append(ast.Expr(ast.Constant(...)))
-    
+
     def parse_module_structure(self, node: ast.Module, descriptions: dict = None):
         for child in node.body[:]:
             if type(child) in (ast.FunctionDef, ast.AsyncFunctionDef):
@@ -305,7 +331,7 @@ class Parser(BaseModel):
                 extension = branch if pointer == tee else space
                 # i.e. space because last, └── , above so no more |
                 yield from self._get_tree_recursively(path, prefix=prefix + extension)
-    
+
     def get_module_deps(self, module_path: str):
         import_names = self.get_import_names(module_path)
         module_paths = self.get_modules_paths()
@@ -315,7 +341,7 @@ class Parser(BaseModel):
             if module_name in import_names:
                 module_deps.extend(self.get_modules(module_path))
         return module_deps
-    
+
     def get_import_names(self, module_path: str):
         module = self.get_module(module_path)
         module_names = []
@@ -324,39 +350,45 @@ class Parser(BaseModel):
                 for alias in node.names:
                     module_names.append(alias.name)
             elif isinstance(node, ast.ImportFrom):
-                module_names.append(node.module.split('.')[-1])  # Get the last part of the module path
+                module_names.append(
+                    node.module.split(".")[-1]
+                )  # Get the last part of the module path
                 for alias in node.names:
                     module_names.append(alias.name)
         return module_names
 
     def get_module_names(self, module_paths):
-        return [
-            os.path.splitext(os.path.split(path)[-1])[0] 
-            for path in module_paths
-        ]
-    
+        return [os.path.splitext(os.path.split(path)[-1])[0] for path in module_paths]
+
     def parse_module_deps(self, module: Module, deps: List[Module]):
-        module_paths = [os.path.join(self.base_dir,module.path)] + [os.path.join(self.base_dir,dep.path) for dep in deps]
+        module_paths = [os.path.join(self.base_dir, module.path)] + [
+            os.path.join(self.base_dir, dep.path) for dep in deps
+        ]
         # groups, nodes, edges = self._deps_parser.get_cross_entities(module_paths)
         groups, nodes, edges = self.parse_files_flows(module_paths)
         groups, nodes, edges = self.get_related_entities(groups, edges)
         nodes_in_common = [edge_node.token for edge_node in nodes]
-        classes_in_common = [subgroup.token for group in groups for subgroup in group.subgroups]
-        
+        classes_in_common = [
+            subgroup.token for group in groups for subgroup in group.subgroups
+        ]
+
         for module in module, *deps:
             for child in module.node.body[:]:
                 if type(child) in (ast.FunctionDef, ast.AsyncFunctionDef):
-                    if not child.name in nodes_in_common:
+                    if child.name not in nodes_in_common:
                         module.node.body.remove(child)
                 elif type(child) == ast.ClassDef:
-                    if not child.name in classes_in_common:
+                    if child.name not in classes_in_common:
                         module.node.body.remove(child)
                     else:
                         for subchild in child.body[:]:
-                            if type(subchild) in (ast.FunctionDef, ast.AsyncFunctionDef):
-                                if not subchild.name in nodes_in_common:
+                            if type(subchild) in (
+                                ast.FunctionDef,
+                                ast.AsyncFunctionDef,
+                            ):
+                                if subchild.name not in nodes_in_common:
                                     child.body.remove(subchild)
-                
+
                 elif type(child) in (ast.Import, ast.ImportFrom):
                     if self.strip_imports:
                         module.node.body.remove(child)
@@ -367,23 +399,27 @@ class Parser(BaseModel):
         for edge in edges:
             execution_flow += f"{edge.node0.file_token}.py {edge.node0.token}() -> {edge.node1.file_token}.py {edge.node1.token}()\n"
         return groups, nodes, edges, execution_flow
-    
+
     def parse_files_flows(self, paths: list):
         # paths = [os.path.join(self.base_dir, file_) for file_ in files]
         return engine.map_it(
             paths,
-            extension="py", 
-            no_trimming=False, exclude_namespaces=[], exclude_functions=[],
-           include_only_namespaces=[], include_only_functions=[],
-           skip_parse_errors=False, lang_params=engine.LanguageParams())
-        
-    
+            extension="py",
+            no_trimming=False,
+            exclude_namespaces=[],
+            exclude_functions=[],
+            include_only_namespaces=[],
+            include_only_functions=[],
+            skip_parse_errors=False,
+            lang_params=engine.LanguageParams(),
+        )
+
     def get_related_entities(self, groups, edges):
         cross_edges = self._find_cross_edges(edges)
         cross_nodes = self._get_edge_nodes(cross_edges)
         cross_groups = engine._filter_groups_for_subset(cross_nodes, groups)
         return cross_groups, cross_nodes, cross_edges
-    
+
     def _find_cross_edges(self, edges):
         """finds edges that cross file boundaries"""
         self._add_parents_attr(edges)
@@ -398,7 +434,7 @@ class Parser(BaseModel):
         for edge in edges:
             self._add_nodes_attrs(edge.node0, edge.node0)
             self._add_nodes_attrs(edge.node1, edge.node1)
-    
+
     def _add_nodes_attrs(self, orig_node, node):
         """recursively adds attributes from parent nodes"""
         if node.parent.group_type == "FILE":
@@ -406,7 +442,7 @@ class Parser(BaseModel):
             # orig_node.path = node.parent.path
         else:
             self._add_nodes_attrs(orig_node, node.parent)
-    
+
     def _get_edge_nodes(self, edges):
         edge_nodes = set()
         for edge in edges:
@@ -414,16 +450,16 @@ class Parser(BaseModel):
             edge_nodes.add(edge.node1)
         return list(edge_nodes)
 
-        
+
 # if __name__ == "__main__":
 
-#     parser = Parser(base_dir="./src/codedoc")
+#     parser = Parser(base_dir="./src/pycodedoc")
 #     a,b,c = parser.parse_files_flows(["parser.py", "docgen.py"])
 #     a,b,c = parser.get_related_entities(a,c)
 #     print(a)
-    # parser.write_graphs(module)
-    # deps = parser.get_module_deps(module)
-    # a,b,c = parser.get_code_deps_structure(module, deps, True)
-    # print(a)
-    # print(b)
-    # print(c)
+# parser.write_graphs(module)
+# deps = parser.get_module_deps(module)
+# a,b,c = parser.get_code_deps_structure(module, deps, True)
+# print(a)
+# print(b)
+# print(c)

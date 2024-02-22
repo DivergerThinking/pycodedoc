@@ -6,39 +6,39 @@ You will be given some instructions as well as the specific part of the codebase
 
 PROMPTS = {
     "functions": {
-        "instructions" : "Write a concised description of what the function does in around 10 words.",
-        "system_prompt": SYSTEM_PROMPT
+        "instructions": "Write a concised description of what the function does in around 10 words.",
+        "system_prompt": SYSTEM_PROMPT,
     },
     "classes": {
-        "instructions" : "Write a concised description of what the class does in around 10 words.",
-        "system_prompt": SYSTEM_PROMPT
+        "instructions": "Write a concised description of what the class does in around 10 words.",
+        "system_prompt": SYSTEM_PROMPT,
     },
     "modules": {
-        "instructions" : """
+        "instructions": """
 
 Write a short descriptions explaining what this module does in maximum 50 words. 
 Focus on the high level functionality of the module, not the implementation details like class and function names.
 
 """.strip(),
-        "system_prompt": SYSTEM_PROMPT
+        "system_prompt": SYSTEM_PROMPT,
     },
     "modules_deps": {
-        "instructions" : """
+        "instructions": """
 
 Write a short description on how a given module interacts with other modules it depends on in maximum 50 words. 
 Make sure to mention all of the module names and the interaction with each one of them
 
 """.strip(),
-        "system_prompt": SYSTEM_PROMPT
+        "system_prompt": SYSTEM_PROMPT,
     },
     "project": {
-        "instructions" : """
+        "instructions": """
 
 Write a high level overview of the project that encapsulates its main use cases and core functionalities.
 Do not explain what every module does (this will be added to the documentation separately) but rather what the project as a whole does.
 
 """.strip(),
-        "system_prompt": SYSTEM_PROMPT
+        "system_prompt": SYSTEM_PROMPT,
     },
 }
 
@@ -52,31 +52,56 @@ TEMPLATE_CODE = """
 """
 
 
-def get_functions_prompts(functions_code: list, instructions: str, system_prompt: str) -> dict:
+def get_functions_prompts(
+    functions_code: list, instructions: str, system_prompt: str
+) -> dict:
     prompts = [
         TEMPLATE_CODE.format(code=code, instructions=instructions)
         for code in functions_code
     ]
-    messages_batches = [[{"role":"system", "content": system_prompt}, {"role":"user", "content": prompt}] for prompt in prompts]
+    messages_batches = [
+        [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        for prompt in prompts
+    ]
     return {"messages_batches": messages_batches}
 
 
-def get_classes_prompts(classes_code: list, instructions: str, system_prompt: str) -> dict:
+def get_classes_prompts(
+    classes_code: list, instructions: str, system_prompt: str
+) -> dict:
     prompts = [
         TEMPLATE_CODE.format(code=code, instructions=instructions)
         for code in classes_code
     ]
-    messages_batches = [[{"role":"system", "content": system_prompt}, {"role":"user", "content": prompt}] for prompt in prompts]
+    messages_batches = [
+        [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        for prompt in prompts
+    ]
     return {"messages_batches": messages_batches}
 
 
-def get_modules_prompts(modules_code: list, instructions: str, system_prompt: str) -> dict:
+def get_modules_prompts(
+    modules_code: list, instructions: str, system_prompt: str
+) -> dict:
     prompts = [
         TEMPLATE_CODE.format(code=code, instructions=instructions)
         for code in modules_code
     ]
-    messages_batches = [[{"role":"system", "content": system_prompt}, {"role":"user", "content": prompt}] for prompt in prompts]
+    messages_batches = [
+        [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        for prompt in prompts
+    ]
     return {"messages_batches": messages_batches}
+
 
 TEMPLATE_CODE_DEPS = """
 ### INSTRUCTIONS: 
@@ -94,17 +119,32 @@ TEMPLATE_CODE_DEPS = """
 {execution_graph}
 """
 
-def get_modules_deps_prompts(modules_code: list, deps_code: list, execution_graphs: list, instructions: str, system_prompt: str) -> dict:
+
+def get_modules_deps_prompts(
+    modules_code: list,
+    deps_code: list,
+    execution_graphs: list,
+    instructions: str,
+    system_prompt: str,
+) -> dict:
     prompts = [
         TEMPLATE_CODE_DEPS.format(
-            module_code=module_code, 
+            module_code=module_code,
             dep_code=dep_code,
             execution_graph=execution_graph,
             instructions=instructions,
         )
-        for module_code, dep_code, execution_graph in zip(modules_code, deps_code, execution_graphs)
+        for module_code, dep_code, execution_graph in zip(
+            modules_code, deps_code, execution_graphs
+        )
     ]
-    messages_batches = [[{"role":"system", "content": system_prompt}, {"role":"user", "content": prompt}] for prompt in prompts]
+    messages_batches = [
+        [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        for prompt in prompts
+    ]
     return {"messages_batches": messages_batches}
 
 
@@ -121,7 +161,15 @@ TEMPLATE_PROJECT = """
 {tree}
 """
 
-def get_project_prompt(modules_docu: list, tree: str, instructions: str, system_prompt: str) -> dict: 
-    prompt = TEMPLATE_PROJECT.format(modules_docu=modules_docu, tree=tree, instructions=instructions)
-    messages = [{"role":"system", "content": system_prompt}, {"role":"user", "content": prompt}]
+
+def get_project_prompt(
+    modules_docu: list, tree: str, instructions: str, system_prompt: str
+) -> dict:
+    prompt = TEMPLATE_PROJECT.format(
+        modules_docu=modules_docu, tree=tree, instructions=instructions
+    )
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": prompt},
+    ]
     return {"messages": messages}
