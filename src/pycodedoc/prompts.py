@@ -26,7 +26,7 @@ Focus on the high level functionality of the module, not the implementation deta
         "instructions": """
 
 Write a short description on how a given module interacts with other modules it depends on in maximum 50 words. Only add the description, no titles.
-Make sure to mention all of the module names and the interaction with each one of them.
+Focus on how the modules are interacting at a high level, not the implementation details such as the specific function calls.
 
 """.strip(),
         "system_prompt": SYSTEM_PROMPT,
@@ -34,7 +34,7 @@ Make sure to mention all of the module names and the interaction with each one o
     "project": {
         "instructions": """
 
-Write a high level overview of the project that encapsulates its main use cases and core functionalities.
+Write a high level overview of the project that encapsulates its main use cases/core functionalities.
 Do not explain what every module does (this will be added to the documentation separately) but rather what the project as a whole does.
 
 """.strip(),
