@@ -1,4 +1,5 @@
 import asyncio
+from tqdm.asyncio import tqdm_asyncio
 import logging
 from typing import ClassVar
 
@@ -73,7 +74,7 @@ class Llm(BaseModel):
     
     async def _run_batches(self, coroutines: list):
         for batch in self._batches(coroutines, self.batch_size):
-            yield await asyncio.gather(*batch)
+            yield await tqdm_asyncio.gather(*batch)
     
     def _batches(self, items, batch_size):
         for i in range(0, len(items), batch_size):

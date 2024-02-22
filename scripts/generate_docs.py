@@ -3,6 +3,8 @@ from codedoc.docgen import DocGen
 from codedoc.costs import estimate_cost
 import toml
 
+
+
 def main(
     dir_path: str, 
     prompts_path: str, 
@@ -59,3 +61,4 @@ if __name__ == "__main__":
                         help='Prints estimation cost of generating the documentation')
     args = parser.parse_args()
     main(args.dir, args.prompts, args.output, args.use_structure, args.ignore_relations, args.ignore_graphs, args.model, args.estimate)
+    

@@ -1,5 +1,6 @@
 import ast
 import os
+import logging
 
 from pydantic import BaseModel, PrivateAttr
 from collections import defaultdict
@@ -14,6 +15,26 @@ from codedoc.prompts import (
     PROMPTS
 )
 from codedoc.parser import Parser
+from rich.logging import RichHandler
+
+def set_logger():
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    
+    # Disable propagation to higher-level (root) logger
+    logger.propagate = False
+
+    # Clear all handlers
+    logger.handlers = []
+
+    handler = RichHandler(rich_tracebacks=True)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")
+    handler.setFormatter(formatter)
+
+    logger.addHandler(handler)
+    return logger
+
+logger = set_logger()
 
 class Descriptions(BaseModel):
     entities: dict = defaultdict(dict)
@@ -51,6 +72,7 @@ class DocGen(BaseModel):
         self.write_markdown()
 
     def generate_functions_desc(self, module_path: str = None):
+        logger.info("GENERATING FUNCTIONS DESCRIPTIONS")
         functions_code = self.parser.get_functions(module_path, attr="code")
         prompts = get_functions_prompts(functions_code, **self.prompts["functions"])
         responses = self.llm.run_batch_completions(**prompts, timeout=10, stream=True, model=self.model)
@@ -60,6 +82,7 @@ class DocGen(BaseModel):
             self._descriptions.functions[function.path][function.uname] = response["content"]
     
     def generate_classes_desc(self, module_path: str = None):
+        logger.info("GENERATING CLASSES DESCRIPTIONS")
         classes = self.parser.get_classes(module_path)
         classes_code = self.get_classes_code(classes)
         prompts = get_classes_prompts(classes_code, **self.prompts["classes"])
@@ -80,6 +103,7 @@ class DocGen(BaseModel):
         return classes_code
     
     def generate_modules_desc(self, module_path: str = None):
+        logger.info("GENERATING MODULES DESCRIPTIONS")
         modules = self.parser.get_modules(module_path)
         modules_code = self.get_modules_code(modules)
         prompts = get_modules_prompts(modules_code, **self.prompts["modules"])
@@ -101,6 +125,7 @@ class DocGen(BaseModel):
         return modules_code
     
     def generate_modules_deps_desc(self, module_path: str = None):
+        logger.info("GENERATING MODULES RELATIONS DESCRIPTIONS")
         modules = self.parser.get_modules(module_path)
         modules_paths, modules_code, deps_code, execution_graphs = [], [], [], []
         for module in modules:
@@ -122,6 +147,7 @@ class DocGen(BaseModel):
             self._descriptions.modules_deps[module_path] = response["content"]
     
     def generate_project_desc(self):
+        logger.info("GENERATING PROJECT OVERVIEW")
         modules_docu = self.get_modules_descriptions()
         prompt = get_project_prompt(modules_docu, self.parser.get_tree(), **self.prompts["project"])
         response = self.llm.run_completions(**prompt, timeout=10, stream=True, model=self.model)
@@ -149,6 +175,7 @@ class DocGen(BaseModel):
         return classes_docu
 
     def write_markdown(self):
+        logger.info("WRITING MARKDOWN DOCUMENTATION")
         md = self.generate_markdown()
         with open(os.path.join(self.output_dir, "project-doc.md"), "w") as f:
             f.write(md)

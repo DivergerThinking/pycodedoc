@@ -1,13 +1,12 @@
 import os
 import ast
 import copy
-import logging
 from typing import Any, List, Union
 from pydantic import BaseModel, PrivateAttr, Field
 from fnmatch import fnmatch
 from pathlib import Path
-# from codedoc.deps import DepsParser
 from code2flow import engine
+
 
 CONFIG = {
     "include_file_patterns": ["*.py"],
@@ -205,8 +204,8 @@ class Parser(BaseModel):
                                     no_grouping=False, as_json=False)
             png_file_path = os.path.splitext(file_path)[0] + ".png"
             engine._generate_final_img(file_path, "png", png_file_path, len(edges))
-        else:
-            logging.warning(f"No graph is created for {file_path} as no execution flow is found.")
+        # else:
+        #     logging.warning(f"No graph is created for {file_path} as no execution flow is found.")
     
     def parse_function_structure(self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef], descriptions: dict = None):
         node.body = []
