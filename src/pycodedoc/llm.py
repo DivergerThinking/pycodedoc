@@ -22,7 +22,7 @@ class Llm(BaseModel):
     max_retries: int = 5
     _client: ClassVar[OpenAI] = PrivateAttr(OpenAI())
 
-    def run_completions(self, messages, model="gpt-3.5-turbo-1106", **kwargs) -> list:
+    def run_completions(self, messages, model="gpt-3.5-turbo-0125", **kwargs) -> list:
         """runs completions synchronously"""
         response = self._client.chat.completions.create(
             messages=messages, model=model, **kwargs
@@ -60,7 +60,7 @@ class Llm(BaseModel):
 
     @retry(stop=stop_after_attempt(3), after=log_retry)
     async def _run_async_completions(
-        self, client, messages, model="gpt-3.5-turbo-1106", **kwargs
+        self, client, messages, model="gpt-3.5-turbo-0125", **kwargs
     ):
         """runs completions asynchronously"""
         response = await client.chat.completions.create(
@@ -82,8 +82,10 @@ class Llm(BaseModel):
         return response
 
     async def _run_batches(self, coroutines: list):
-        for batch in self._batches(coroutines, self.batch_size):
-            yield await tqdm_asyncio.gather(*batch)
+        for batch_nr, batch in enumerate(self._batches(coroutines, self.batch_size)):
+            yield await tqdm_asyncio.gather(
+                *batch, desc=f"Running completions for batch nr {batch_nr+1}"
+            )
 
     def _batches(self, items, batch_size):
         for i in range(0, len(items), batch_size):

@@ -1,10 +1,8 @@
 import ast
-import logging
 import os
 from collections import defaultdict
 
 from pydantic import BaseModel, PrivateAttr
-from rich.logging import RichHandler
 
 from pycodedoc.llm import Llm
 from pycodedoc.parser import Parser
@@ -16,27 +14,7 @@ from pycodedoc.prompts import (
     get_modules_prompts,
     get_project_prompt,
 )
-
-
-def set_logger():
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-
-    # Disable propagation to higher-level (root) logger
-    logger.propagate = False
-
-    # Clear all handlers
-    logger.handlers = []
-
-    handler = RichHandler(rich_tracebacks=True)
-    formatter = logging.Formatter(
-        "%(asctime)s - %(levelname)s - %(message)s", "%Y-%m-%d %H:%M:%S"
-    )
-    handler.setFormatter(formatter)
-
-    logger.addHandler(handler)
-    return logger
-
+from pycodedoc.utils import set_logger
 
 logger = set_logger()
 
@@ -50,13 +28,14 @@ class Descriptions(BaseModel):
     project: str = ""
 
 
-class DocGen(BaseModel):
+class DocGen(BaseModel, extra="forbid"):
     use_structure: bool = False
     add_relations: bool = True
+    add_classes: bool = True
     create_graphs: bool = True
     prompts: dict = PROMPTS
     output_dir: str = "./docs"
-    model: str = "gpt-3.5-turbo-1106"
+    model: str = "gpt-3.5-turbo-0125"
     llm: Llm = Llm()
     parser: Parser = Parser()
     _descriptions: Descriptions = PrivateAttr(Descriptions())
@@ -70,7 +49,8 @@ class DocGen(BaseModel):
     def generate_documentation(self):
         if self.use_structure:
             self.generate_functions_desc()
-        self.generate_classes_desc()
+        if self.add_classes:
+            self.generate_classes_desc()
         self.generate_modules_desc()
         if self.add_relations:
             self.generate_modules_deps_desc()
@@ -224,32 +204,39 @@ class DocGen(BaseModel):
         md += "## MODULES"
         md += self.get_modules_descriptions()
 
-        md += "\n\n## CLASSES\n"
-        md += self.get_classes_descriptions()
+        if self.add_classes:
+            md += "\n\n## CLASSES\n"
+            md += self.get_classes_descriptions()
 
         if self.create_graphs:
-            md += "\n\n## EXECUTION FLOWS\n"
-
-            md += "\n### MODULES\n"
+            title = "\n\n## EXECUTION FLOWS\n\n### MODULES\n"
+            graph_md = title
             for module in self.parser.get_modules_paths():
                 file_path = (
                     f"{self.output_dir}/graphs/{os.path.splitext(module)[0]}.png"
                 )
                 if os.path.exists(file_path):
                     rel_path = os.path.relpath(file_path, self.output_dir)
-                    md += f"\n![Alt text]({rel_path})\n"
+                    graph_md += f"\n![Alt text]({rel_path})\n"
+            # only add section if some graphs were added
+            if graph_md != title:
+                md += graph_md
 
             if self.add_relations:
-                md += "\n### MODULE RELATIONSHIPS\n"
+                title = "\n### MODULE RELATIONSHIPS\n"
+                graph_md = title
                 for module in self.parser.get_modules_paths():
                     file_path = f"{self.output_dir}/graphs/{os.path.splitext(module)[0]}_deps.png"
                     if os.path.exists(file_path):
                         rel_path = os.path.relpath(file_path, self.output_dir)
-                        md += f"\n![Alt text]({rel_path})\n"
+                        graph_md += f"\n![Alt text]({rel_path})\n"
+                # only add section if some graphs were added
+                if graph_md != title:
+                    md += graph_md
 
         return md
 
 
-if __name__ == "__main__":
-    docgen = DocGen(parser={"base_dir": "./src/pycodedoc"})
-    docgen.generate_documentation()
+# if __name__ == "__main__":
+#     docgen = DocGen(parser={"base_dir": "./src/pycodedoc"}, use_structure=True, add_classes=False)
+#     docgen.generate_documentation()

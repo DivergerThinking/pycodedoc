@@ -8,10 +8,14 @@ from typing import Any, List, Union
 from code2flow import engine
 from pydantic import BaseModel, Field, PrivateAttr
 
+from pycodedoc.utils import set_logger
+
 CONFIG = {
     "include_file_patterns": ["*.py"],
     "exclude_patterns": [".*", "__*"],
 }
+
+logger = set_logger()
 
 
 class Function(BaseModel):
@@ -214,18 +218,30 @@ class Parser(BaseModel):
         if any(edges):
             if not os.path.exists(os.path.dirname(file_path)):
                 os.makedirs(os.path.dirname(file_path))
-            with open(file_path, "w") as fh:
-                engine.write_file(
-                    fh,
-                    nodes=nodes,
-                    edges=edges,
-                    groups=groups,
-                    hide_legend=False,
-                    no_grouping=False,
-                    as_json=False,
-                )
-            png_file_path = os.path.splitext(file_path)[0] + ".png"
-            engine._generate_final_img(file_path, "png", png_file_path, len(edges))
+            try:
+                with open(file_path, "w") as fh:
+                    engine.write_file(
+                        fh,
+                        nodes=nodes,
+                        edges=edges,
+                        groups=groups,
+                        hide_legend=False,
+                        no_grouping=False,
+                        as_json=False,
+                    )
+                png_file_path = os.path.splitext(file_path)[0] + ".png"
+                engine._generate_final_img(file_path, "png", png_file_path, len(edges))
+            except FileNotFoundError as e:
+                if e.filename == "dot":
+                    logger.error(
+                        "Graphviz is not installed correctly. Please install it to generate the graphs."
+                    )
+                    os.remove(file_path)
+                    os.remove(png_file_path)
+                else:
+                    raise e
+            except Exception as e:
+                raise e
         # else:
         #     logging.warning(f"No graph is created for {file_path} as no execution flow is found.")
 
@@ -237,7 +253,7 @@ class Parser(BaseModel):
         node.body = []
         if descriptions:
             # add docstring to function body
-            docstring = descriptions[node.uname]
+            docstring = descriptions[node.name]
             node.body.append(ast.Expr(ast.Constant(docstring)))
         # add ellipsis to function body
         node.body.append(ast.Expr(ast.Constant(...)))
