@@ -2,34 +2,61 @@
 
 Welcome to pycodedoc, a Python tool leveraging generative AI to effortlessly document your Python projects.
 
-#### 📚 AI-Generated Documentation
+- [pycodedoc](#pycodedoc)
+  - [Features](#features)
+    - [📚 AI-Generated Documentation](#-ai-generated-documentation)
+    - [💻 CLI tool](#-cli-tool)
+    - [🐍 Python API](#-python-api)
+  - [🛠️ Installation](#️-installation)
+      - [Pypi](#pypi)
+      - [Development](#development)
+      - [Graphviz](#graphviz)
+      - [OpenAI key](#openai-key)
+  - [💻 CLI Usage](#-cli-usage)
+    - [📁 Base directory](#-base-directory)
+    - [💲 Cost of running the tool](#-cost-of-running-the-tool)
+    - [🤖 Selecting a specific model](#-selecting-a-specific-model)
+    - [🔖 Configuring prompts](#-configuring-prompts)
+    - [📂 Output directory](#-output-directory)
+    - [💾 Using code structure](#-using-code-structure)
+    - [🔽 Reducing the documentation process](#-reducing-the-documentation-process)
+  - [🐍 API Usage](#-api-usage)
+      - [Generating full documentation](#generating-full-documentation)
+      - [Generating part of the documentation](#generating-part-of-the-documentation)
+
+
+## Features
+
+### 📚 AI-Generated Documentation
 Uses LLMs to automatically generate markdown documentation containing:
 - an overview of the project as a whole, its main functionalities and its structure
 - descriptions of the modules used in your project and how they interact with each other
 - descriptions of the classes used throughout your project
 - graphs showing the execution flow of your code
 
-#### 💻 CLI tool
+### 💻 CLI tool
 The CLI tool allows you to easily:
 - modify the prompts you want to use for documenting your project
 - use the OpenAI model of your choice
 - estimate the costs of generating the documentation beforehand
 
-#### 🐍 Python API
+### 🐍 Python API
 The library's API enables you to build on top of the tool
 
-##  🛠️ Installation
+## 🛠️ Installation
 
-The easiest way to install the tool is by using Pip:
+#### Pypi
 
 ```bash
 pip install pycodedoc
 ```
 
-Alternatively, you can clone the repository and install the package in editable mode (best for development):
+#### Development
+
+Alternatively to Pypi, you can clone the repository and install the package in editable mode :
 
 ```bash
-git clone ...
+git clone https://github.com/DivergerThinking/pycodedoc.git
 cd pycodedoc
 pip install -e .
 ```
@@ -57,17 +84,17 @@ export OPENAI_API_KEY="..."
 | Options           | Description                                                                                           |
 |-------------------|-------------------------------------------------------------------------------------------------------|
 | `--base-dir` or `-d`   | The directory of the Python project you want to document.                                             |
-| `--output-dir` or `-o` | The output directory path. Default is "docs/".                                               |
+| `--output-dir` or `-o` | The output directory path where the documentation is written. Default is "docs/".                                               |
 | `--model` or `-m` | The OpenAI model to use for generating the documentation. Default is "gpt-3.5-turbo-0125".           |
 | `--estimate` or `-e` | Prints estimation cost of generating the documentation. Default is False.                            |
 | `--configure` or `-c` | Writes the defaults prompts to a prompt.toml file which can be modified. Default is False.                            |
 | `--use-structure` or `-us` | Use the structure of the code to generate the documentation. Default is False.                      |
-| `--no-relations` or `-nr` | Does not generate relationship between modules. Default is False.                             |
-| `--no-classes` or `-nc` | Does not generate classes descriptions. Default is False.                                              |
+| `--no-relations` or `-nr` | Does not generate relationship between modules. Default is to generate them.                             |
+| `--no-classes` or `-nc` | Does not generate classes descriptions. Default is to generate them.                                              |
 
-### Project directory
+### 📁 Base directory
 
-To run the tool you must specify the directory where your python project is found. Ideally, all of your modules are stored in a single directory (ex. src/ directory). Here is an example on document the `pycodedoc` project itself.
+To run the tool you must specify the directory where your python project is found using the `--base-dir` or `-d` option. Ideally, all of your modules are stored in a single directory (ex. src/ directory). Here is an example on document the `pycodedoc` project itself.
 
 ```bash
 pycodedoc -d src/codedoc
@@ -135,21 +162,27 @@ This reduces the overall context passed to the LLMs, reducing costs and speeding
 
 You can build on top of the tool by using the main functions from the API.
 
-#### Generating documentation (same as running `pycodedoc` from CLI)
+#### Generating full documentation
+
+The below code is the equivalent of running `pycodedoc` -d src/pycodedoc` using the CLI:
 
 ```python
 from pycodedoc import DocGen
 
-docgen = DocGen(base_dir="src/pycodedoc")
+# to modify the prompts used, you can pass a dict reflecting the prompts.toml file to the `prompts=` argument
+docgen = DocGen(base_dir="src/pycodedoc") # other configurations are the same as in the CLI
 docgen.generate_documentation()
 ```
 
-#### Generating descriptions for part of the codebase
+#### Generating part of the documentation
+
+The `generate_descriptions`
 
 ```python
 from pycodedoc import DocGen
 
-docgen = DocGen(base_dir="src/pycodedoc") # other configurations are the same as in CLI
+# to modify the prompts used, you can pass a dict reflecting the prompts.toml file to the `prompts=` argument
+docgen = DocGen(base_dir="src/pycodedoc") # other configurations are the same as in the CLI
 docgen.generate_descriptions("functions")
 # OUTPUT -> list of descriptions for each function in the project
 docgen.generate_descriptions("functions", module_path="parser.py")
@@ -163,6 +196,6 @@ docgen.generate_descriptions("modules")
 docgen.generate_descriptions("modules_relations")
 # OUTPUT -> list of descriptions for each classes in the project
 docgen.generate_descriptions("project")
-# OUTPUT -> project description [str]. NOTE: first need to generate modules descriptions
+# OUTPUT -> project description [str]. NOTE: first you need to generate the modules descriptions
 ```
 
