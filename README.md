@@ -13,7 +13,7 @@ Welcome to pycodedoc, a Python tool leveraging generative AI to effortlessly doc
       - [Graphviz](#graphviz)
       - [OpenAI key](#openai-key)
   - [💻 CLI Usage](#-cli-usage)
-    - [📁 Base directory](#-base-directory)
+      - [📁 Base directory](#-base-directory)
       - [💲 Cost of running the tool](#-cost-of-running-the-tool)
       - [🤖 Selecting a specific model](#-selecting-a-specific-model)
       - [🔖 Configuring prompts](#-configuring-prompts)
@@ -92,12 +92,12 @@ export OPENAI_API_KEY="..."
 | `--no-relations` or `-nr` | Does not generate relationship between modules. Default is to generate them.                             |
 | `--no-classes` or `-nc` | Does not generate classes descriptions. Default is to generate them.                                              |
 
-### 📁 Base directory
+#### 📁 Base directory
 
 To run the tool you must specify the directory where your python project is found using the `--base-dir` or `-d` option. Ideally, all of your modules are stored in a single directory (ex. src/ directory). Here is an example on document the `pycodedoc` project itself.
 
 ```bash
-pycodedoc -d src/codedoc
+pycodedoc -d src/pycodedoc
 ```
 
 This will write the output to a markdown file under "./docs/project-doc.md". </br>
@@ -108,7 +108,7 @@ This will write the output to a markdown file under "./docs/project-doc.md". </b
 The cost of running the tool largely varies based on the size of the codebase and the model you use. To avoid bad surprises, you can first estimate the cost of running the tool by using the ``--estimate`` option:
 
 ```bash
-pycodedoc -d src/codedoc --estimate
+pycodedoc -d src/pycodedoc --estimate
 ```
 
 Running the tool on the ./src/pycodedoc/ directory approximately costs $0.01 if using the default configuration.
@@ -119,7 +119,7 @@ By default, the tool uses the latest ``gpt-3.5-turbo-0125`` model since it is cu
 You can however use another model by passing the model parameter using the ``--model`` or `-m` option
 
 ```bash
-pycodedoc -d src/codedoc -m gpt-4-0125-preview
+pycodedoc -d src/pycodedoc -m gpt-4-0125-preview
 ```
 
 #### 🔖 Configuring prompts
@@ -135,7 +135,7 @@ pycodedoc --configure
 By default, the documentation is stored under the /docs directory. If this directory is already in use and you want to avoid using it, you can modify the output directory with the `--output-dir` or `-o` option
 
 ```bash
-pycodedoc -d src/codedoc --o project_docs
+pycodedoc -d src/pycodedoc --o project_docs
 ```
 
 #### 💾 Using code structure
@@ -143,7 +143,7 @@ pycodedoc -d src/codedoc --o project_docs
 Instead of using the entire modules' content, you can only use the structure of the code (imports, signatures and function descriptions) via the `--use-structure` option. This is particularly useful if you have large files whose content may exceed the model's context window maximum token limit.
 
 ```bash
-pycodedoc -d src/codedoc --use-structure
+pycodedoc -d src/pycodedoc --use-structure
 ```
 
 **NOTE**: the descriptions for each function in the files will be generated beforehand to make the code structure more meaningful while keeping the file's token count low. The cost of this process is (more or less) offset by the reduction in tokens from the resulting code structure.
@@ -153,7 +153,7 @@ pycodedoc -d src/codedoc --use-structure
 You can also reduce the documentation process by NOT generating descriptions for the classes or modules' relationships using the `--no-classes` and `--no-relations` options. 
 
 ```bash
-pycodedoc -d src/codedoc --no-classes --no-relations
+pycodedoc -d src/pycodedoc --no-classes --no-relations
 ```
 
 This reduces the overall context passed to the LLMs, reducing costs and speeding up the generation process. 
