@@ -212,7 +212,7 @@ class Parser(BaseModel):
             [os.path.join(self.base_dir, module.path)]
         )
         file_path = os.path.join(output_dir, "graphs", f"{module.name}.gv")
-        self._write_graphs(groups, nodes, edges, file_path)
+        return self._write_graphs(groups, nodes, edges, file_path)
 
     def _write_graphs(self, groups, nodes, edges, file_path):
         if any(edges):
@@ -238,12 +238,12 @@ class Parser(BaseModel):
                     )
                     os.remove(file_path)
                     os.remove(png_file_path)
+                    return False
                 else:
                     raise e
             except Exception as e:
                 raise e
-        # else:
-        #     logging.warning(f"No graph is created for {file_path} as no execution flow is found.")
+        return True
 
     def parse_function_structure(
         self,
@@ -465,17 +465,3 @@ class Parser(BaseModel):
             edge_nodes.add(edge.node0)
             edge_nodes.add(edge.node1)
         return list(edge_nodes)
-
-
-# if __name__ == "__main__":
-
-#     parser = Parser(base_dir="./src/pycodedoc")
-#     a,b,c = parser.parse_files_flows(["parser.py", "docgen.py"])
-#     a,b,c = parser.get_related_entities(a,c)
-#     print(a)
-# parser.write_graphs(module)
-# deps = parser.get_module_deps(module)
-# a,b,c = parser.get_code_deps_structure(module, deps, True)
-# print(a)
-# print(b)
-# print(c)

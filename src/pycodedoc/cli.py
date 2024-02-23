@@ -23,10 +23,10 @@ def write_prompts(content: str, path: str):
 @app.command()
 def main(
     base_dir: str = typer.Option(
-        "", "--dir", "-d", help="The path of the directory to document"
+        "", "--base-dir", "-d", help="The path of the directory to document"
     ),
     output_dir: str = typer.Option(
-        "./docs", "--output", "-o", help="The path of the output file"
+        "./docs", "--output-dir", "-o", help="The path of the output file"
     ),
     no_graphs: bool = typer.Option(
         False, "--no-graphs", "-ng", help="Do not create execution graphs of the code"
@@ -70,21 +70,21 @@ def main(
     if os.path.exists("prompts.toml"):
         prompts = load_prompts("prompts.toml")
         docgen = DocGen(
-            parser={"base_dir": base_dir},
+            base_dir=base_dir,
             prompts=prompts,
             create_graphs=not no_graphs,
-            add_relations=not no_relations,
-            add_classes=not no_classes,
+            no_relations=no_relations,
+            no_classes=no_classes,
             use_structure=use_structure,
             output_dir=output_dir,
             model=model,
         )
     else:
         docgen = DocGen(
-            parser={"base_dir": base_dir},
+            base_dir=base_dir,
             create_graphs=not no_graphs,
-            add_relations=not no_relations,
-            add_classes=not no_classes,
+            no_relations=no_relations,
+            no_classes=no_classes,
             use_structure=use_structure,
             output_dir=output_dir,
             model=model,

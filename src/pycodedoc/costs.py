@@ -94,8 +94,3 @@ def estimate_cost(docgen: DocGen):
     )  # assuming 100 tokens description length per module
     cost += calculate_cost(intokens=intokens, outtokens=50, model=docgen.model)
     return round(cost, 6)
-
-
-if __name__ == "__main__":
-    docgen = DocGen(parser={"base_dir": "./src/pycodedoc"})
-    print(estimate_cost(docgen))

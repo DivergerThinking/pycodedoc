@@ -34,7 +34,7 @@ Focus on how the modules are interacting at a high level, not the implementation
     "project": {
         "instructions": """
 
-Write a high level overview of the project that encapsulates its main use cases/core functionalities.
+Write a high level overview of the project that encapsulates its core functionalities.
 Do not explain what every module does (this will be added to the documentation separately) but rather what the project as a whole does.
 
 """.strip(),
