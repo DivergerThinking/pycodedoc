@@ -14,12 +14,12 @@ Welcome to pycodedoc, a Python tool leveraging generative AI to effortlessly doc
       - [OpenAI key](#openai-key)
   - [💻 CLI Usage](#-cli-usage)
     - [📁 Base directory](#-base-directory)
-    - [💲 Cost of running the tool](#-cost-of-running-the-tool)
-    - [🤖 Selecting a specific model](#-selecting-a-specific-model)
-    - [🔖 Configuring prompts](#-configuring-prompts)
-    - [📂 Output directory](#-output-directory)
-    - [💾 Using code structure](#-using-code-structure)
-    - [🔽 Reducing the documentation process](#-reducing-the-documentation-process)
+      - [💲 Cost of running the tool](#-cost-of-running-the-tool)
+      - [🤖 Selecting a specific model](#-selecting-a-specific-model)
+      - [🔖 Configuring prompts](#-configuring-prompts)
+      - [📂 Output directory](#-output-directory)
+      - [💾 Using code structure](#-using-code-structure)
+      - [🔽 Reducing the documentation process](#-reducing-the-documentation-process)
   - [🐍 API Usage](#-api-usage)
       - [Generating full documentation](#generating-full-documentation)
       - [Generating part of the documentation](#generating-part-of-the-documentation)
@@ -81,8 +81,8 @@ export OPENAI_API_KEY="..."
 
 ## 💻 CLI Usage
 
-| Options           | Description                                                                                           |
-|-------------------|-------------------------------------------------------------------------------------------------------|
+| Options               | Description                                                                                           |
+|-----------------------|-------------------------------------------------------------------------------------------------------|
 | `--base-dir` or `-d`   | The directory of the Python project you want to document.                                             |
 | `--output-dir` or `-o` | The output directory path where the documentation is written. Default is "docs/".                                               |
 | `--model` or `-m` | The OpenAI model to use for generating the documentation. Default is "gpt-3.5-turbo-0125".           |
@@ -103,7 +103,7 @@ pycodedoc -d src/codedoc
 This will write the output to a markdown file under "./docs/project-doc.md". </br>
 **NOTE**: Only Python files are used for documenting the project. 
 
-### 💲 Cost of running the tool
+#### 💲 Cost of running the tool
 
 The cost of running the tool largely varies based on the size of the codebase and the model you use. To avoid bad surprises, you can first estimate the cost of running the tool by using the ``--estimate`` option:
 
@@ -113,7 +113,7 @@ pycodedoc -d src/codedoc --estimate
 
 Running the tool on the ./src/pycodedoc/ directory approximately costs $0.01 if using the default configuration.
 
-### 🤖 Selecting a specific model
+#### 🤖 Selecting a specific model
 
 By default, the tool uses the latest ``gpt-3.5-turbo-0125`` model since it is currently the cheapest capable chat model from OpenAI.
 You can however use another model by passing the model parameter using the ``--model`` or `-m` option
@@ -122,7 +122,7 @@ You can however use another model by passing the model parameter using the ``--m
 pycodedoc -d src/codedoc -m gpt-4-0125-preview
 ```
 
-### 🔖 Configuring prompts
+#### 🔖 Configuring prompts
 
 The prompts used for documenting your codebase can be accessed and modified by using the `--configure` or `-c` option.
 
@@ -130,7 +130,7 @@ The prompts used for documenting your codebase can be accessed and modified by u
 pycodedoc --configure
 ```
 
-### 📂 Output directory
+#### 📂 Output directory
 
 By default, the documentation is stored under the /docs directory. If this directory is already in use and you want to avoid using it, you can modify the output directory with the `--output-dir` or `-o` option
 
@@ -138,7 +138,7 @@ By default, the documentation is stored under the /docs directory. If this direc
 pycodedoc -d src/codedoc --o project_docs
 ```
 
-### 💾 Using code structure
+#### 💾 Using code structure
 
 Instead of using the entire modules' content, you can only use the structure of the code (imports, signatures and function descriptions) via the `--use-structure` option. This is particularly useful if you have large files whose content may exceed the model's context window maximum token limit.
 
@@ -148,7 +148,7 @@ pycodedoc -d src/codedoc --use-structure
 
 **NOTE**: the descriptions for each function in the files will be generated beforehand to make the code structure more meaningful while keeping the file's token count low. The cost of this process is (more or less) offset by the reduction in tokens from the resulting code structure.
 
-### 🔽 Reducing the documentation process
+#### 🔽 Reducing the documentation process
 
 You can also reduce the documentation process by NOT generating descriptions for the classes or modules' relationships using the `--no-classes` and `--no-relations` options. 
 
