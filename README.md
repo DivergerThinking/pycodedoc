@@ -4,9 +4,9 @@ Welcome to pycodedoc, a Python tool leveraging generative AI to effortlessly doc
 
 - [pycodedoc](#pycodedoc)
   - [Features](#features)
-    - [📚 AI-Generated Documentation](#-ai-generated-documentation)
-    - [💻 CLI tool](#-cli-tool)
-    - [🐍 Python API](#-python-api)
+      - [📚 AI-Generated Documentation](#-ai-generated-documentation)
+      - [💻 CLI tool](#-cli-tool)
+      - [🐍 Python API](#-python-api)
   - [🛠️ Installation](#️-installation)
       - [Pypi](#pypi)
       - [Development](#development)
@@ -27,20 +27,20 @@ Welcome to pycodedoc, a Python tool leveraging generative AI to effortlessly doc
 
 ## Features
 
-### 📚 AI-Generated Documentation
+#### 📚 AI-Generated Documentation
 Uses LLMs to automatically generate markdown documentation containing:
 - an overview of the project as a whole, its main functionalities and its structure
 - descriptions of the modules used in your project and how they interact with each other
 - descriptions of the classes used throughout your project
 - graphs showing the execution flow of your code
 
-### 💻 CLI tool
+#### 💻 CLI tool
 The CLI tool allows you to easily:
 - modify the prompts you want to use for documenting your project
 - use the OpenAI model of your choice
 - estimate the costs of generating the documentation beforehand
 
-### 🐍 Python API
+#### 🐍 Python API
 The library's API enables you to build on top of the tool
 
 ## 🛠️ Installation
