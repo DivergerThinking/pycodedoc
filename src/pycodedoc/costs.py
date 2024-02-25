@@ -49,7 +49,7 @@ def estimate_cost(docgen: DocGen):
                 model=docgen.model,
             )
     # estimate classes descriptions costs
-    if docgen.add_classes:
+    if not docgen.no_classes:
         docgen._descriptions.entities = None
         for class_ in docgen.parser.get_classes():
             if docgen.use_structure:
@@ -73,7 +73,7 @@ def estimate_cost(docgen: DocGen):
             model=docgen.model,
         )
     # estimate modules dependencies descriptions costs
-    if docgen.add_relations:
+    if not docgen.no_relations:
         modules = docgen.parser.get_modules()
         for module in modules:
             deps = docgen.parser.get_module_deps(module.path)
