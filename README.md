@@ -185,7 +185,7 @@ docgen.generate_documentation()
 
 #### Generating part of the documentation
 
-The `generate_descriptions`
+The `generate_descriptions` method can be used to generate descriptions at different levels of detail in the codebase. 
 
 ```python
 from pycodedoc import DocGen
@@ -208,3 +208,4 @@ docgen.generate_descriptions("project")
 # OUTPUT -> project description [str]. NOTE: first you need to generate the modules descriptions
 ```
 
+Together, all of these steps make up for generating the overall project's documentation
