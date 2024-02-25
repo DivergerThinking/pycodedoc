@@ -7,6 +7,7 @@ Welcome to pycodedoc, a Python tool leveraging generative AI to effortlessly doc
       - [📚 AI-Generated Documentation](#-ai-generated-documentation)
       - [💻 CLI tool](#-cli-tool)
       - [🐍 Python API](#-python-api)
+  - [How it works](#how-it-works)
   - [🛠️ Installation](#️-installation)
       - [Pypi](#pypi)
       - [Development](#development)
@@ -42,6 +43,14 @@ The CLI tool allows you to easily:
 
 #### 🐍 Python API
 The library's API enables you to build on top of the tool
+
+## How it works
+
+The tool uses the OpenAI API to generate descriptions at different levels of detail within the project. The workflow it follows is outlined below:
+
+![alt text](docs/imgs/workflow.png)
+
+Project documentation is generated using a bottom-up approach: it starts by generating descriptions of low-level entities in the codebase such as functions and classes before moving up to modules and their relationships until finally generating an overview of the project. The output from each step is used as context for the following step, **allowing the LLM to gain a gradual understanding of the overall codebase** as we move up the process.
 
 ## 🛠️ Installation
 
