@@ -3,6 +3,7 @@
 Welcome to pycodedoc, a Python tool leveraging generative AI to effortlessly document your Python projects.
 
 - [pycodedoc](#pycodedoc)
+  - [Demo](#demo)
   - [Features](#features)
       - [📚 AI-Generated Documentation](#-ai-generated-documentation)
       - [💻 CLI tool](#-cli-tool)
@@ -25,6 +26,9 @@ Welcome to pycodedoc, a Python tool leveraging generative AI to effortlessly doc
       - [Generating full documentation](#generating-full-documentation)
       - [Generating part of the documentation](#generating-part-of-the-documentation)
 
+## Demo
+
+![alt text](docs/imgs/pycodedoc-0.1.0-demo.gif)
 
 ## Features
 
